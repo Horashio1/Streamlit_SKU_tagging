@@ -88,7 +88,7 @@ def log_gpt_cost_to_sheets(usage_stats, operation_details=None):
         operation_details: Optional dictionary with additional context about the operation
     """
     if not GOOGLE_SHEETS_WEBAPP_URL:
-        print("⚠️ Google Sheets Web App URL not configured. Skipping cost logging.")
+        print("[WARN] Google Sheets Web App URL not configured. Skipping cost logging.")
         return False
     
     try:
@@ -121,14 +121,14 @@ def log_gpt_cost_to_sheets(usage_stats, operation_details=None):
         )
         
         if response.status_code == 200:
-            print(f"✓ GPT cost logged to Google Sheets: {usage_stats.get('total_cost', 0):.6f} USD")
+            print(f"[OK] GPT cost logged to Google Sheets: {usage_stats.get('total_cost', 0):.6f} USD")
             return True
         else:
-            print(f"✗ Failed to log to Google Sheets: {response.status_code} - {response.text}")
+            print(f"[ERROR] Failed to log to Google Sheets: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"✗ Error logging to Google Sheets: {str(e)}")
+        print(f"[ERROR] Error logging to Google Sheets: {str(e)}")
         return False
 
 def update_bt_gk_mappings(bt_gk_updates):
@@ -143,7 +143,7 @@ def update_bt_gk_mappings(bt_gk_updates):
         bool: True if successful, False otherwise
     """
     if not GOOGLE_SHEETS_WEBAPP_URL:
-        print("⚠️ Google Sheets Web App URL not configured. Skipping BT_GK update.")
+        print("[WARN] Google Sheets Web App URL not configured. Skipping BT_GK update.")
         return False
     
     if not bt_gk_updates:
@@ -169,14 +169,14 @@ def update_bt_gk_mappings(bt_gk_updates):
         
         if response.status_code == 200:
             result = response.json()
-            print(f"✓ BT_GK mappings updated in Google Sheets: {result}")
+            print(f"[OK] BT_GK mappings updated in Google Sheets: {result}")
             return True
         else:
-            print(f"✗ Failed to update BT_GK mappings: {response.status_code} - {response.text}")
+            print(f"[ERROR] Failed to update BT_GK mappings: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"✗ Error updating BT_GK mappings: {str(e)}")
+        print(f"[ERROR] Error updating BT_GK mappings: {str(e)}")
         return False
 
 
@@ -192,7 +192,7 @@ def update_bt_ct_mappings(bt_ct_updates):
         bool: True if successful, False otherwise
     """
     if not GOOGLE_SHEETS_WEBAPP_URL:
-        print("⚠️ Google Sheets Web App URL not configured. Skipping BT_CT update.")
+        print("[WARN] Google Sheets Web App URL not configured. Skipping BT_CT update.")
         return False
     
     if not bt_ct_updates:
@@ -218,14 +218,14 @@ def update_bt_ct_mappings(bt_ct_updates):
         
         if response.status_code == 200:
             result = response.json()
-            print(f"✓ BT_CT mappings updated in Google Sheets: {result}")
+            print(f"[OK] BT_CT mappings updated in Google Sheets: {result}")
             return True
         else:
-            print(f"✗ Failed to update BT_CT mappings: {response.status_code} - {response.text}")
+            print(f"[ERROR] Failed to update BT_CT mappings: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"✗ Error updating BT_CT mappings: {str(e)}")
+        print(f"[ERROR] Error updating BT_CT mappings: {str(e)}")
         return False
 
 
@@ -243,7 +243,7 @@ def log_new_bt_update(bt_name, category, sku_name, action='added'):
         bool: True if successful, False otherwise
     """
     if not GOOGLE_SHEETS_WEBAPP_URL:
-        print("⚠️ Google Sheets Web App URL not configured. Skipping BT Update log.")
+        print("[WARN] Google Sheets Web App URL not configured. Skipping BT Update log.")
         return False
     
     try:
@@ -268,14 +268,14 @@ def log_new_bt_update(bt_name, category, sku_name, action='added'):
         
         if response.status_code == 200:
             result = response.json()
-            print(f"✓ BT Update logged in Google Sheets: {result}")
+            print(f"[OK] BT Update logged in Google Sheets: {result}")
             return True
         else:
-            print(f"✗ Failed to log BT Update: {response.status_code} - {response.text}")
+            print(f"[ERROR] Failed to log BT Update: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"✗ Error logging BT Update: {str(e)}")
+        print(f"[ERROR] Error logging BT Update: {str(e)}")
         return False
 
 
@@ -292,7 +292,7 @@ def add_new_bt_to_mappings(bt_name, category, generic_keywords=None):
         bool: True if successful, False otherwise
     """
     if not GOOGLE_SHEETS_WEBAPP_URL:
-        print("⚠️ Google Sheets Web App URL not configured. Skipping new BT addition.")
+        print("[WARN] Google Sheets Web App URL not configured. Skipping new BT addition.")
         return False
     
     try:
@@ -316,14 +316,14 @@ def add_new_bt_to_mappings(bt_name, category, generic_keywords=None):
         
         if response.status_code == 200:
             result = response.json()
-            print(f"✓ New basic type added to Google Sheets: {result}")
+            print(f"[OK] New basic type added to Google Sheets: {result}")
             return True
         else:
-            print(f"✗ Failed to add new basic type: {response.status_code} - {response.text}")
+            print(f"[ERROR] Failed to add new basic type: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"✗ Error adding new basic type: {str(e)}")
+        print(f"[ERROR] Error adding new basic type: {str(e)}")
         return False
 
 
@@ -393,7 +393,7 @@ try:
     print(f"\nLoading BT_CT_mappings (gid={SHEET_IDS['BT_CT_mappings']})...")
     st.session_state.mapping_cat_bt_df = load_google_sheet(SPREADSHEET_ID, SHEET_IDS['BT_CT_mappings'])
     if st.session_state.mapping_cat_bt_df is not None:
-        print(f"✓ Category-BasicType Mapping loaded: {len(st.session_state.mapping_cat_bt_df)} records")
+        print(f"[OK] Category-BasicType Mapping loaded: {len(st.session_state.mapping_cat_bt_df)} records")
         print(f"  Columns: {list(st.session_state.mapping_cat_bt_df.columns)}")
         # Parse list columns if stored as strings
         for col in st.session_state.mapping_cat_bt_df.columns:
@@ -404,7 +404,7 @@ try:
     print(f"\nLoading BT_GK_mappings (gid={SHEET_IDS['BT_GK_mappings']})...")
     st.session_state.mapping_bt_gk_df = load_google_sheet(SPREADSHEET_ID, SHEET_IDS['BT_GK_mappings'])
     if st.session_state.mapping_bt_gk_df is not None:
-        print(f"✓ BasicType-GenericKeywords Mapping loaded: {len(st.session_state.mapping_bt_gk_df)} records")
+        print(f"[OK] BasicType-GenericKeywords Mapping loaded: {len(st.session_state.mapping_bt_gk_df)} records")
         print(f"  Columns: {list(st.session_state.mapping_bt_gk_df.columns)}")
         # Parse list columns if stored as strings
         for col in st.session_state.mapping_bt_gk_df.columns:
@@ -416,14 +416,14 @@ try:
         st.session_state.category_df = pd.DataFrame({
             'Category': st.session_state.mapping_cat_bt_df.iloc[:, 1].unique()
         })
-        print(f"\n✓ Categories extracted: {len(st.session_state.category_df)} unique categories")
+        print(f"\n[OK] Categories extracted: {len(st.session_state.category_df)} unique categories")
     
     # Extract unique basic types from the mapping
     if st.session_state.mapping_bt_gk_df is not None:
         st.session_state.bt_df = pd.DataFrame({
             st.session_state.mapping_bt_gk_df.columns[0]: st.session_state.mapping_bt_gk_df.iloc[:, 0].unique()
         })
-        print(f"✓ Basic Types extracted: {len(st.session_state.bt_df)} unique basic types")
+        print(f"[OK] Basic Types extracted: {len(st.session_state.bt_df)} unique basic types")
     
     # Extract unique generic keywords from the mapping
     if st.session_state.mapping_bt_gk_df is not None:
@@ -437,7 +437,7 @@ try:
         st.session_state.gk_df = pd.DataFrame({
             'Generic Keywords': sorted(list(set(all_keywords)))
         })
-        print(f"✓ Generic Keywords extracted: {len(st.session_state.gk_df)} unique keywords")
+        print(f"[OK] Generic Keywords extracted: {len(st.session_state.gk_df)} unique keywords")
     
     # Status message
     files_loaded = sum([st.session_state.mapping_cat_bt_df is not None,
@@ -456,7 +456,7 @@ try:
         st.sidebar.warning(f"⚠️ {files_loaded}/5 datasets loaded from Google Sheets")
         
 except Exception as e:
-    print(f"\n✗ Error loading data from Google Sheets: {str(e)}")
+    print(f"\n[ERROR] Error loading data from Google Sheets: {str(e)}")
     st.sidebar.error(f"Error loading data from Google Sheets: {str(e)}")
 
 # Sidebar - Batch Processing Configuration
@@ -637,13 +637,13 @@ if st.session_state.sku_data:
                                         # Streamlit selectboxes read from st.session_state[key], not from sku_data.
                                         # Both must be updated for the UI to reflect the change.
                                         st.session_state[f"cat_{idx}"] = category
-                                        print(f"✓ Set category for '{sku_name}' to: {category}")
+                                        print(f"[OK] Set category for '{sku_name}' to: {category}")
                                         break
                             
                             processed = batch_end
                             
                         except Exception as e:
-                            print(f"✗ Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
+                            print(f"[ERROR] Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
                             st.error(f"Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
                         
                         progress_bar.progress(processed / total_skus)
@@ -686,7 +686,7 @@ if st.session_state.sku_data:
                         ].tolist()
                         
                         if not basic_type_list or len(basic_type_list) == 0:
-                            print(f"✗ No basic types found for category: {category}")
+                            print(f"[ERROR] No basic types found for category: {category}")
                             processed += len(sku_list)
                             continue
                         
@@ -736,18 +736,21 @@ if st.session_state.sku_data:
                                     basic_type = result_item['basic_type']
                                     
                                     # Find the SKU in our data and update
-                                    for idx, orig_sku, _ in batch_items:
-                                        if orig_sku == sku_name:
-                                            st.session_state.sku_data[idx]['basic_type'] = basic_type
-                                            # IMPORTANT: Update widget state directly.
-                                            # Streamlit selectboxes read from st.session_state[key], not from sku_data.
-                                            # Both must be updated for the UI to reflect the change.
-                                            st.session_state[f"bt_{idx}"] = basic_type
-                                            print(f"  ✓ Set basic type for '{sku_name}' to: {basic_type}")
-                                            break
+                                for idx, orig_sku, _ in batch_items:
+                                    if orig_sku == sku_name:
+                                        st.session_state.sku_data[idx]['basic_type'] = basic_type
+                                        # IMPORTANT: Update widget state directly.
+                                        # Streamlit selectboxes read from st.session_state[key], not from sku_data.
+                                        # Both must be updated for the UI to reflect the change.
+                                        st.session_state[f"bt_{idx}"] = basic_type
+                                        # This is the actual selectbox key for Basic Type column,
+                                        # so update it as well to reflect GPT changes in the UI.
+                                        st.session_state[f"bt_select_{idx}"] = basic_type
+                                        print(f"  [OK] Set basic type for '{sku_name}' to: {basic_type}")
+                                        break
                                 
                             except Exception as e:
-                                print(f"  ✗ Error processing batch: {str(e)}")
+                                print(f"  [ERROR] Error processing batch: {str(e)}")
                                 st.error(f"Error processing batch in category {category}: {str(e)}")
                             
                             processed += (batch_end - batch_start)
@@ -836,6 +839,9 @@ if st.session_state.sku_data:
                                         st.session_state.sku_data[idx]['category'] = category
                                         # Update widget state directly
                                         st.session_state[f"bt_{idx}"] = basic_type
+                                        # This is the actual selectbox key for Basic Type column,
+                                        # so update it as well to reflect GPT changes in the UI.
+                                        st.session_state[f"bt_select_{idx}"] = basic_type
                                         st.session_state[f"cat_{idx}"] = category
                                         
                                         # Handle suggested new basic type
@@ -846,15 +852,15 @@ if st.session_state.sku_data:
                                                 'sku_name': sku_name,
                                                 'closest_existing_bt': basic_type
                                             }
-                                            print(f"✓ Set '{sku_name}' -> BT: {basic_type}, Category: {category} (Suggested NEW: {suggested_bt})")
+                                            print(f"[OK] Set '{sku_name}' -> BT: {basic_type}, Category: {category} (Suggested NEW: {suggested_bt})")
                                         else:
-                                            print(f"✓ Set '{sku_name}' -> BT: {basic_type}, Category: {category}")
+                                            print(f"[OK] Set '{sku_name}' -> BT: {basic_type}, Category: {category}")
                                         break
                             
                             processed = batch_end
                             
                         except Exception as e:
-                            print(f"✗ Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
+                            print(f"[ERROR] Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
                             st.error(f"Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
                         
                         progress_bar.progress(processed / total_skus)
@@ -965,9 +971,9 @@ if st.session_state.sku_data:
                                     # IMPORTANT: Update widget state directly for st_tags.
                                     # Like selectboxes, st_tags reads from st.session_state[key], not from the value param.
                                     st.session_state[f"tags_{idx}"] = generic_keywords
-                                    print(f"✓ Set generic keywords to: {generic_keywords}")
+                                    print(f"[OK] Set generic keywords to: {generic_keywords}")
                             except Exception as e:
-                                print(f"✗ Error processing {item['sku_name']}: {str(e)}")
+                                print(f"[ERROR] Error processing {item['sku_name']}: {str(e)}")
                                 st.error(f"Error processing {item['sku_name']}: {str(e)}")
                         progress_bar.progress((idx + 1) / len(st.session_state.sku_data))
                     
@@ -1022,8 +1028,8 @@ if st.session_state.sku_data:
         missing_cats = [cat for cat in assigned_cats if cat and cat not in category_options]
         if missing_cats:
             st.warning(f"⚠️ Warning: {len(missing_cats)} assigned categories not found in dropdown options: {missing_cats[:5]}")
-            print(f"Missing categories in dropdown: {missing_cats}")
-            print(f"Available categories (first 10): {category_options[1:11]}")
+            print(f"[WARN] Missing categories in dropdown: {missing_cats}")
+            print(f"[INFO] Available categories (first 10): {category_options[1:11]}")
     
     # Custom CSS for compact table
     st.markdown("""
@@ -1132,6 +1138,8 @@ if st.session_state.sku_data:
                     
                     # Update sku_data with the new basic type
                     st.session_state.sku_data[idx]['basic_type'] = suggested_bt
+                    # Also update the Basic Type selectbox state so the UI shows it
+                    st.session_state[f"bt_select_{idx}"] = suggested_bt
                     
                     # Track as accepted new basic type
                     if suggested_bt not in st.session_state.accepted_new_bts:
@@ -1157,17 +1165,19 @@ if st.session_state.sku_data:
             
             # Selectbox for selecting from existing basic types
             selectbox_key = f"bt_select_{idx}"
-            
-            # Determine initial index
-            try:
-                initial_idx = dropdown_options.index(current_bt) if current_bt in dropdown_options else 0
-            except ValueError:
-                initial_idx = 0
-            
+
+            # STREAMLIT WIDGET STATE PATTERN (same as Category):
+            # Do NOT use the 'index' parameter together with Session State.
+            # Instead, initialize st.session_state[selectbox_key] once, then let the
+            # selectbox read and manage its value solely via this key.
+            if selectbox_key not in st.session_state:
+                # Use current_bt if available, otherwise default to empty option
+                initial_value = current_bt if current_bt in dropdown_options else ''
+                st.session_state[selectbox_key] = initial_value
+
             selected_bt = st.selectbox(
                 "BT",
                 options=dropdown_options,
-                index=initial_idx,
                 key=selectbox_key,
                 label_visibility="collapsed"
             )
@@ -1188,6 +1198,8 @@ if st.session_state.sku_data:
                 )
                 if custom_bt and custom_bt.strip():
                     st.session_state.sku_data[idx]['basic_type'] = custom_bt.strip()
+                    # Keep the Basic Type selectbox in sync with the custom value
+                    st.session_state[f"bt_select_{idx}"] = custom_bt.strip()
                     # Track as new basic type
                     if custom_bt.strip() not in st.session_state.accepted_new_bts:
                         current_cat = item['category'] if item['category'] else 'Uncategorized'
