@@ -1,0 +1,11 @@
+SKU,Category Correct,Basic Type Correct,Expected Category,Result Category,Expected Basic Type,Result Basic Type,Missing GKs,Extra GKs,GK Accuracy (%)
+Mortein Flying Insect Killer Lemon 250ml,True,False,Household,Household,Cockroach Repellant Spray,Mosquito Repellent Spray,"['Mosquito Spray', 'Mortein Mosquito Spray', 'Mortein']",['Ninja Protector Flying Insect Killer Spray'],40.0
+Ritzbury Revello Chocolate Hazelnut 100g,True,False,Groceries,Groceries,Chocolate,Chocolate Bar,"['Chocolate', 'Revello Chocolate', 'Ritzbury Revello Chocolate', 'Hazelnut Chocolate']",['Chocolate Bar'],20.0
+Gillette Fusion Razor,True,True,Personal Care,Personal Care,Razor,Razor,['Razor Blades'],[],80.0
+Prima Noodles Stella Vegetable No Add Msg 74g,True,False,Groceries,Groceries,Instant Noodles,Noodles,"['Instant Noodles', 'Prima Stella Vegetable Instant Noodles', 'Prima No MSG', 'Prima Stella Instant Noodles', 'Prima Stella', 'Prima Stella Vegetable Flavour']",['Noodles'],14.285714285714285
+Evon Deo Roll On Natural 30ml,True,False,Personal Care,Personal Care,Deodrant,Roll On Deodorant,"['Deodrant Roll', 'Evon Deodorant Roll', 'Womens Deodrant', 'Evon Deodorant']","['Roll-On Deodorant', 'Roll On']",33.33333333333333
+Nature Turmeric Powder 100g,True,True,Groceries,Groceries,Termeric Powder,Termeric Powder,[],[],100.0
+Alerics Malt Crunch 1l,False,False,Dairy,Groceries,Ice Cream Tub,Malt Drink,"['Malt Ice Cream', 'Alerics Malt Ice Cream', 'Ice Cream', 'Alerics Ice Cream', 'Dairy']","['Beverage', 'Malt Drink', 'Groceries', 'Non Alcoholic', 'Non Alcoholic Beverage']",0.0
+Haus Boom Grapple 325Ml,True,False,Groceries,Groceries,Canned Drink,Isotonic drink,"['Carbonated Drink', 'Haus Boom Grapple']",['Isotonic Drink'],60.0
+Tong Garden Coated Peanuts Barbecue Flavour 50g,True,True,Groceries,Groceries,Peanuts,Peanuts,['Nuts'],[],80.0
+Kumarika Shampoo Long & Black 180ml,True,True,Personal Care,Personal Care,Shampoo,Shampoo,[],[],100.0

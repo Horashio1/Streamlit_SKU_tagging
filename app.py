@@ -508,7 +508,7 @@ if st.sidebar.button("🔄 Reset Usage Stats"):
     st.rerun()
 
 # Main content area
-st.header("📋 SKU Data")
+st.header("")
 
 # Upload SKU list file
 st.subheader("📤 Upload SKU List")
