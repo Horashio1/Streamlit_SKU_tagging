@@ -8,8 +8,7 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 from streamlit_tags import st_tags
-from utils import gpt_call, gpt_call_with_usage, category_prompt, basictype_prompt, generic_keyword_prompt, batch_category_prompt, batch_basictype_prompt, batch_basictype_category_prompt, batch_embedding_bt_category_prompt
-from embedding_utils import build_bt_embeddings, get_sku_embeddings, find_similar_basic_types_batch, load_cache, EMBEDDING_BATCH_SIZE
+from utils import gpt_call, gpt_call_with_usage, category_prompt, basictype_prompt, generic_keyword_prompt, batch_category_prompt, batch_basictype_prompt, batch_basictype_category_prompt
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,7 +25,6 @@ open_api_key = os.getenv('AZURE_OPENAI_API_KEY')
 api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-01')
 azure_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
 deployment_name = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')
-embedding_deployment_name = os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', '')
 
 # Validate required environment variables
 if not all([open_api_key, azure_endpoint, deployment_name]):
@@ -485,25 +483,6 @@ BT_CATEGORY_BATCH_SIZE = st.sidebar.number_input(
     help="Number of SKUs to process in one GPT call for combined Basic Type and Category lookup"
 )
 
-# Embedding-based BT config
-st.sidebar.header("🧠 Embedding Config")
-EMBEDDING_TOP_K = st.sidebar.number_input(
-    "Top-K Similar BTs",
-    min_value=5,
-    max_value=100,
-    value=30,
-    help="Number of most similar basic types to shortlist per SKU via embeddings before sending to GPT"
-)
-EMBEDDING_BT_BATCH_SIZE = st.sidebar.number_input(
-    "Embedding BT Batch Size",
-    min_value=1,
-    max_value=50,
-    value=15,
-    help="Number of SKUs per GPT call when using embedding-filtered basic types"
-)
-if not embedding_deployment_name:
-    st.sidebar.warning("⚠️ Set AZURE_OPENAI_EMBEDDING_DEPLOYMENT in .env to use embedding features")
-
 # Sidebar - API Usage Statistics
 st.sidebar.header("📊 API Usage Stats")
 st.sidebar.metric("Total Tokens", f"{st.session_state.total_session_tokens:,}")
@@ -597,7 +576,7 @@ if st.session_state.sku_data:
     
     # Action buttons
     st.header("🤖 Auto-Tagging Actions")
-    col1, col2, col3, col3b, col4 = st.columns(5)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         if st.button("🎯 Find Categories", disabled=not all_files_loaded, use_container_width=True):
@@ -899,167 +878,6 @@ if st.session_state.sku_data:
                         st.info(f"💡 {new_bt_count} SKUs have suggested new basic types. See suggestions below each SKU in the table.")
                     else:
                         st.success(f"✅ BT & Categories found for {processed} SKUs! | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
-                    st.rerun()
-
-    with col3b:
-        embedding_disabled = not all_files_loaded or not embedding_deployment_name
-        if st.button("🧠 BT+Cat (Embeddings)", disabled=embedding_disabled, use_container_width=True,
-                     help="Uses embeddings to shortlist relevant basic types, then GPT picks the best match. Lower cost than sending all 1.2k BTs."):
-            if all_files_loaded and embedding_deployment_name:
-                with st.spinner("Building/loading BT embeddings & finding matches..."):
-                    # --- Step 1: Build or load cached BT embeddings ---
-                    all_basic_types = st.session_state.mapping_cat_bt_df.iloc[:, 0].unique().tolist()
-                    bt_to_category = {}
-                    for _, row in st.session_state.mapping_cat_bt_df.iterrows():
-                        bt_to_category[row.iloc[0]] = row.iloc[1]
-
-                    progress_bar = st.progress(0, text="Building BT embeddings (cached after first run)...")
-
-                    def bt_progress(current, total):
-                        progress_bar.progress(current / total, text=f"Embedding basic types: {current}/{total}")
-
-                    bt_cache, bt_embed_stats = build_bt_embeddings(
-                        api_key=open_api_key,
-                        api_version=api_version,
-                        azure_endpoint=azure_endpoint,
-                        embedding_deployment=embedding_deployment_name,
-                        basic_types=all_basic_types,
-                        bt_to_category=bt_to_category,
-                        progress_callback=bt_progress
-                    )
-
-                    # Log BT embedding costs (only if API was actually called)
-                    for stat in bt_embed_stats:
-                        st.session_state.api_usage_stats.append(stat)
-                        st.session_state.total_session_cost += stat['total_cost']
-                        st.session_state.total_session_tokens += stat['total_tokens']
-                        log_gpt_cost_to_sheets(stat, {
-                            'sku_count': 0,
-                            'notes': f'Embedding {len(all_basic_types)} basic types (one-time, cached)'
-                        })
-
-                    # --- Step 2: Compute SKU embeddings ---
-                    progress_bar.progress(0, text="Computing SKU embeddings...")
-                    all_sku_names = [item['sku_name'] for item in st.session_state.sku_data]
-
-                    sku_embeddings, sku_embed_stats = get_sku_embeddings(
-                        api_key=open_api_key,
-                        api_version=api_version,
-                        azure_endpoint=azure_endpoint,
-                        embedding_deployment=embedding_deployment_name,
-                        sku_names=all_sku_names
-                    )
-
-                    # Log SKU embedding costs
-                    for stat in sku_embed_stats:
-                        st.session_state.api_usage_stats.append(stat)
-                        st.session_state.total_session_cost += stat['total_cost']
-                        st.session_state.total_session_tokens += stat['total_tokens']
-                        log_gpt_cost_to_sheets(stat, {
-                            'sku_count': len(all_sku_names),
-                            'notes': f'Embedding {len(all_sku_names)} SKU names'
-                        })
-
-                    # --- Step 3: Find similar BTs for each SKU ---
-                    progress_bar.progress(0.3, text="Finding similar basic types...")
-                    all_candidates = find_similar_basic_types_batch(sku_embeddings, bt_cache, top_k=EMBEDDING_TOP_K)
-
-                    # --- Step 4: Send filtered candidates to GPT in batches ---
-                    total_skus = len(st.session_state.sku_data)
-                    processed = 0
-                    batch_usage_stats = []
-                    st.session_state.suggested_new_bts = {}
-
-                    for batch_start in range(0, total_skus, EMBEDDING_BT_BATCH_SIZE):
-                        batch_end = min(batch_start + EMBEDDING_BT_BATCH_SIZE, total_skus)
-
-                        # Build per-SKU candidate lists for this batch
-                        sku_candidates_list = []
-                        for idx in range(batch_start, batch_end):
-                            sku_candidates_list.append({
-                                'sku_name': st.session_state.sku_data[idx]['sku_name'],
-                                'candidates': all_candidates[idx]
-                            })
-
-                        print(f"\n>>> Embedding BT+Cat Batch: SKUs {batch_start+1}-{batch_end}")
-
-                        try:
-                            result, usage_stats = gpt_call_with_usage(
-                                open_api_key, api_version, azure_endpoint, deployment_name,
-                                batch_embedding_bt_category_prompt(sku_candidates_list)
-                            )
-
-                            usage_stats['operation'] = 'Find BT+CT (Embedding)'
-                            usage_stats['batch'] = f"SKUs {batch_start+1}-{batch_end}"
-                            batch_usage_stats.append(usage_stats)
-                            st.session_state.api_usage_stats.append(usage_stats)
-                            st.session_state.total_session_cost += usage_stats['total_cost']
-                            st.session_state.total_session_tokens += usage_stats['total_tokens']
-
-                            log_gpt_cost_to_sheets(usage_stats, {
-                                'sku_count': batch_end - batch_start,
-                                'notes': f'Embedding-filtered BT+Cat for {batch_end - batch_start} SKUs (top-{EMBEDDING_TOP_K} candidates each)'
-                            })
-
-                            # Clean result
-                            result_clean = result.strip()
-                            if result_clean.startswith('```'):
-                                lines = result_clean.split('\n')
-                                result_clean = '\n'.join([l for l in lines if not l.startswith('```')])
-
-                            batch_results = json.loads(result_clean)['results']
-
-                            for result_item in batch_results:
-                                sku_name = result_item['sku']
-                                basic_type = result_item['basic_type']
-                                category = result_item.get('category', bt_to_category.get(basic_type, ''))
-                                is_new_bt = result_item.get('is_new_bt', False)
-                                suggested_bt = result_item.get('suggested_bt', None)
-
-                                for idx in range(batch_start, batch_end):
-                                    if st.session_state.sku_data[idx]['sku_name'] == sku_name:
-                                        st.session_state.sku_data[idx]['basic_type'] = basic_type
-                                        st.session_state.sku_data[idx]['category'] = category
-                                        st.session_state[f"bt_{idx}"] = basic_type
-                                        st.session_state[f"bt_select_{idx}"] = basic_type
-                                        st.session_state[f"cat_{idx}"] = category
-
-                                        if is_new_bt and suggested_bt:
-                                            st.session_state.suggested_new_bts[idx] = {
-                                                'suggested_bt': suggested_bt,
-                                                'category': category,
-                                                'sku_name': sku_name,
-                                                'closest_existing_bt': basic_type
-                                            }
-                                            print(f"[OK] {sku_name} -> BT: {basic_type}, Cat: {category} (NEW: {suggested_bt})")
-                                        else:
-                                            print(f"[OK] {sku_name} -> BT: {basic_type}, Cat: {category}")
-                                        break
-
-                            processed = batch_end
-
-                        except Exception as e:
-                            print(f"[ERROR] Embedding batch {batch_start+1}-{batch_end}: {str(e)}")
-                            st.error(f"Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
-
-                        progress_bar.progress(0.3 + 0.7 * (processed / total_skus), text=f"GPT processing: {processed}/{total_skus} SKUs")
-
-                    progress_bar.empty()
-
-                    # Usage summary (embedding + GPT costs combined)
-                    all_stats = bt_embed_stats + sku_embed_stats + batch_usage_stats
-                    total_tokens = sum(s['total_tokens'] for s in all_stats)
-                    total_cost = sum(s['total_cost'] for s in all_stats)
-                    embed_cost = sum(s['total_cost'] for s in bt_embed_stats + sku_embed_stats)
-                    gpt_cost = sum(s['total_cost'] for s in batch_usage_stats)
-
-                    new_bt_count = len(st.session_state.suggested_new_bts)
-                    cost_msg = f"✅ BT & Categories found (Embedding) for {processed} SKUs! | Tokens: {total_tokens:,} | Embed: ${embed_cost:.4f} | GPT: ${gpt_cost:.4f} | Total: ${total_cost:.4f}"
-                    if new_bt_count > 0:
-                        st.success(cost_msg)
-                        st.info(f"💡 {new_bt_count} SKUs have suggested new basic types.")
-                    else:
-                        st.success(cost_msg)
                     st.rerun()
 
     with col4:
