@@ -8,7 +8,9 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 from streamlit_tags import st_tags
-from utils import gpt_call, gpt_call_with_usage, category_prompt, basictype_prompt, generic_keyword_prompt, batch_category_prompt, batch_basictype_prompt, batch_basictype_category_prompt
+import streamlit.components.v1 as components
+from utils import gpt_call, gpt_call_with_usage, category_prompt, basictype_prompt, generic_keyword_prompt, batch_category_prompt, batch_basictype_prompt, batch_basictype_category_prompt, batch_embedding_bt_category_prompt
+from embedding_utils import build_bt_embeddings, get_sku_embeddings, find_similar_basic_types_batch, load_cache, EMBEDDING_BATCH_SIZE
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,6 +27,7 @@ open_api_key = os.getenv('AZURE_OPENAI_API_KEY')
 api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-01')
 azure_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
 deployment_name = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')
+embedding_deployment_name = os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', '')
 
 # Validate required environment variables
 if not all([open_api_key, azure_endpoint, deployment_name]):
@@ -384,80 +387,103 @@ def safe_parse_list(value):
                 return value
     return value
 
-try:
-    print("\n" + "="*60)
-    print("Loading data from Google Sheets...")
-    print("="*60)
-    
-    # Load Category-BasicType Mapping (BT_CT_mappings sheet)
-    print(f"\nLoading BT_CT_mappings (gid={SHEET_IDS['BT_CT_mappings']})...")
-    st.session_state.mapping_cat_bt_df = load_google_sheet(SPREADSHEET_ID, SHEET_IDS['BT_CT_mappings'])
-    if st.session_state.mapping_cat_bt_df is not None:
-        print(f"[OK] Category-BasicType Mapping loaded: {len(st.session_state.mapping_cat_bt_df)} records")
-        print(f"  Columns: {list(st.session_state.mapping_cat_bt_df.columns)}")
-        # Parse list columns if stored as strings
-        for col in st.session_state.mapping_cat_bt_df.columns:
-            if st.session_state.mapping_cat_bt_df[col].dtype == object:
-                st.session_state.mapping_cat_bt_df[col] = st.session_state.mapping_cat_bt_df[col].apply(safe_parse_list)
-    
-    # Load BasicType-GenericKeywords Mapping (BT_GK_mappings sheet)
-    print(f"\nLoading BT_GK_mappings (gid={SHEET_IDS['BT_GK_mappings']})...")
-    st.session_state.mapping_bt_gk_df = load_google_sheet(SPREADSHEET_ID, SHEET_IDS['BT_GK_mappings'])
-    if st.session_state.mapping_bt_gk_df is not None:
-        print(f"[OK] BasicType-GenericKeywords Mapping loaded: {len(st.session_state.mapping_bt_gk_df)} records")
-        print(f"  Columns: {list(st.session_state.mapping_bt_gk_df.columns)}")
-        # Parse list columns if stored as strings
-        for col in st.session_state.mapping_bt_gk_df.columns:
-            if st.session_state.mapping_bt_gk_df[col].dtype == object:
-                st.session_state.mapping_bt_gk_df[col] = st.session_state.mapping_bt_gk_df[col].apply(safe_parse_list)
-    
-    # Extract unique categories from the mapping (from Category Tag Type column - index 1)
-    if st.session_state.mapping_cat_bt_df is not None:
-        st.session_state.category_df = pd.DataFrame({
-            'Category': st.session_state.mapping_cat_bt_df.iloc[:, 1].unique()
-        })
-        print(f"\n[OK] Categories extracted: {len(st.session_state.category_df)} unique categories")
-    
-    # Extract unique basic types from the mapping
-    if st.session_state.mapping_bt_gk_df is not None:
-        st.session_state.bt_df = pd.DataFrame({
-            st.session_state.mapping_bt_gk_df.columns[0]: st.session_state.mapping_bt_gk_df.iloc[:, 0].unique()
-        })
-        print(f"[OK] Basic Types extracted: {len(st.session_state.bt_df)} unique basic types")
-    
-    # Extract unique generic keywords from the mapping
-    if st.session_state.mapping_bt_gk_df is not None:
-        all_keywords = []
-        gk_column = st.session_state.mapping_bt_gk_df.columns[1]
-        for keywords in st.session_state.mapping_bt_gk_df[gk_column]:
-            if isinstance(keywords, list):
-                all_keywords.extend(keywords)
-            elif isinstance(keywords, str):
-                all_keywords.append(keywords)
-        st.session_state.gk_df = pd.DataFrame({
-            'Generic Keywords': sorted(list(set(all_keywords)))
-        })
-        print(f"[OK] Generic Keywords extracted: {len(st.session_state.gk_df)} unique keywords")
-    
-    # Status message
+# Only load from Google Sheets if data hasn't been loaded yet (avoid re-fetching on every rerun)
+if 'sheets_loaded' not in st.session_state:
+    st.session_state.sheets_loaded = False
+
+# Sidebar button to force-refresh mapping data
+if st.sidebar.button("🔄 Reload Mapping Data"):
+    st.session_state.sheets_loaded = False
+
+if not st.session_state.sheets_loaded:
+    try:
+        print("\n" + "="*60)
+        print("Loading data from Google Sheets...")
+        print("="*60)
+        
+        # Load Category-BasicType Mapping (BT_CT_mappings sheet)
+        print(f"\nLoading BT_CT_mappings (gid={SHEET_IDS['BT_CT_mappings']})...")
+        st.session_state.mapping_cat_bt_df = load_google_sheet(SPREADSHEET_ID, SHEET_IDS['BT_CT_mappings'])
+        if st.session_state.mapping_cat_bt_df is not None:
+            print(f"[OK] Category-BasicType Mapping loaded: {len(st.session_state.mapping_cat_bt_df)} records")
+            print(f"  Columns: {list(st.session_state.mapping_cat_bt_df.columns)}")
+            # Parse list columns if stored as strings
+            for col in st.session_state.mapping_cat_bt_df.columns:
+                if st.session_state.mapping_cat_bt_df[col].dtype == object:
+                    st.session_state.mapping_cat_bt_df[col] = st.session_state.mapping_cat_bt_df[col].apply(safe_parse_list)
+        
+        # Load BasicType-GenericKeywords Mapping (BT_GK_mappings sheet)
+        print(f"\nLoading BT_GK_mappings (gid={SHEET_IDS['BT_GK_mappings']})...")
+        st.session_state.mapping_bt_gk_df = load_google_sheet(SPREADSHEET_ID, SHEET_IDS['BT_GK_mappings'])
+        if st.session_state.mapping_bt_gk_df is not None:
+            print(f"[OK] BasicType-GenericKeywords Mapping loaded: {len(st.session_state.mapping_bt_gk_df)} records")
+            print(f"  Columns: {list(st.session_state.mapping_bt_gk_df.columns)}")
+            # Parse list columns if stored as strings
+            for col in st.session_state.mapping_bt_gk_df.columns:
+                if st.session_state.mapping_bt_gk_df[col].dtype == object:
+                    st.session_state.mapping_bt_gk_df[col] = st.session_state.mapping_bt_gk_df[col].apply(safe_parse_list)
+        
+        # Extract unique categories from the mapping (from Category Tag Type column - index 1)
+        if st.session_state.mapping_cat_bt_df is not None:
+            st.session_state.category_df = pd.DataFrame({
+                'Category': st.session_state.mapping_cat_bt_df.iloc[:, 1].unique()
+            })
+            print(f"\n[OK] Categories extracted: {len(st.session_state.category_df)} unique categories")
+        
+        # Extract unique basic types from the mapping
+        if st.session_state.mapping_bt_gk_df is not None:
+            st.session_state.bt_df = pd.DataFrame({
+                st.session_state.mapping_bt_gk_df.columns[0]: st.session_state.mapping_bt_gk_df.iloc[:, 0].unique()
+            })
+            print(f"[OK] Basic Types extracted: {len(st.session_state.bt_df)} unique basic types")
+        
+        # Extract unique generic keywords from the mapping
+        if st.session_state.mapping_bt_gk_df is not None:
+            all_keywords = []
+            gk_column = st.session_state.mapping_bt_gk_df.columns[1]
+            for keywords in st.session_state.mapping_bt_gk_df[gk_column]:
+                if isinstance(keywords, list):
+                    all_keywords.extend(keywords)
+                elif isinstance(keywords, str):
+                    all_keywords.append(keywords)
+            st.session_state.gk_df = pd.DataFrame({
+                'Generic Keywords': sorted(list(set(all_keywords)))
+            })
+            print(f"[OK] Generic Keywords extracted: {len(st.session_state.gk_df)} unique keywords")
+        
+        # Mark as loaded so we don't re-fetch on every rerun
+        st.session_state.sheets_loaded = True
+        
+        # Status message
+        files_loaded = sum([st.session_state.mapping_cat_bt_df is not None,
+                           st.session_state.mapping_bt_gk_df is not None,
+                           st.session_state.category_df is not None,
+                           st.session_state.bt_df is not None,
+                           st.session_state.gk_df is not None])
+        
+        print("\n" + "="*60)
+        print(f"Data loading complete: {files_loaded}/5 datasets loaded")
+        print("="*60 + "\n")
+        
+        if files_loaded == 5:
+            st.sidebar.success(f"✅ All mapping data loaded from Google Sheets ({files_loaded}/5)")
+        else:
+            st.sidebar.warning(f"⚠️ {files_loaded}/5 datasets loaded from Google Sheets")
+            
+    except Exception as e:
+        print(f"\n[ERROR] Error loading data from Google Sheets: {str(e)}")
+        st.sidebar.error(f"Error loading data from Google Sheets: {str(e)}")
+else:
+    # Data already loaded - just show status in sidebar
     files_loaded = sum([st.session_state.mapping_cat_bt_df is not None,
                        st.session_state.mapping_bt_gk_df is not None,
                        st.session_state.category_df is not None,
                        st.session_state.bt_df is not None,
                        st.session_state.gk_df is not None])
-    
-    print("\n" + "="*60)
-    print(f"Data loading complete: {files_loaded}/5 datasets loaded")
-    print("="*60 + "\n")
-    
     if files_loaded == 5:
         st.sidebar.success(f"✅ All mapping data loaded from Google Sheets ({files_loaded}/5)")
     else:
         st.sidebar.warning(f"⚠️ {files_loaded}/5 datasets loaded from Google Sheets")
-        
-except Exception as e:
-    print(f"\n[ERROR] Error loading data from Google Sheets: {str(e)}")
-    st.sidebar.error(f"Error loading data from Google Sheets: {str(e)}")
 
 # Sidebar - Batch Processing Configuration
 st.sidebar.header("⚙️ Batch Processing Config")
@@ -482,6 +508,25 @@ BT_CATEGORY_BATCH_SIZE = st.sidebar.number_input(
     value=15, 
     help="Number of SKUs to process in one GPT call for combined Basic Type and Category lookup"
 )
+
+# Embedding-based BT config
+st.sidebar.header("🧠 Embedding Config")
+EMBEDDING_TOP_K = st.sidebar.number_input(
+    "Top-K Similar BTs",
+    min_value=5,
+    max_value=100,
+    value=30,
+    help="Number of most similar basic types to shortlist per SKU via embeddings before sending to GPT"
+)
+EMBEDDING_BT_BATCH_SIZE = st.sidebar.number_input(
+    "Embedding BT Batch Size",
+    min_value=1,
+    max_value=50,
+    value=15,
+    help="Number of SKUs per GPT call when using embedding-filtered basic types"
+)
+if not embedding_deployment_name:
+    st.sidebar.warning("⚠️ Set AZURE_OPENAI_EMBEDDING_DEPLOYMENT in .env to use embedding features")
 
 # Sidebar - API Usage Statistics
 st.sidebar.header("📊 API Usage Stats")
@@ -576,195 +621,9 @@ if st.session_state.sku_data:
     
     # Action buttons
     st.header("🤖 Auto-Tagging Actions")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🎯 Find Categories", disabled=not all_files_loaded, use_container_width=True):
-            if all_files_loaded:
-                with st.spinner("Finding categories in batches..."):
-                    category_list = st.session_state.category_df['Category'].tolist()
-                    total_skus = len(st.session_state.sku_data)
-                    
-                    progress_bar = st.progress(0)
-                    processed = 0
-                    batch_usage_stats = []
-                    
-                    # Process in batches
-                    for batch_start in range(0, total_skus, CATEGORY_BATCH_SIZE):
-                        batch_end = min(batch_start + CATEGORY_BATCH_SIZE, total_skus)
-                        batch_skus = [item['sku_name'] for item in st.session_state.sku_data[batch_start:batch_end]]
-                        
-                        print(f"\n>>> Processing Category Batch: SKUs {batch_start+1}-{batch_end} ({len(batch_skus)} items)")
-                        
-                        try:
-                            result, usage_stats = gpt_call_with_usage(
-                                open_api_key, api_version, azure_endpoint, deployment_name,
-                                batch_category_prompt(batch_skus, category_list)
-                            )
-                            
-                            # Track usage stats
-                            usage_stats['operation'] = 'Find Categories'
-                            usage_stats['batch'] = f"SKUs {batch_start+1}-{batch_end}"
-                            batch_usage_stats.append(usage_stats)
-                            st.session_state.api_usage_stats.append(usage_stats)
-                            st.session_state.total_session_cost += usage_stats['total_cost']
-                            st.session_state.total_session_tokens += usage_stats['total_tokens']
-                            
-                            # Log to Google Sheets
-                            log_gpt_cost_to_sheets(usage_stats, {
-                                'sku_count': len(batch_skus),
-                                'notes': f'Batch processing {len(batch_skus)} SKUs for category assignment'
-                            })
-                            
-                            # Clean result to remove markdown code fences
-                            result_clean = result.strip()
-                            if result_clean.startswith('```'):
-                                lines = result_clean.split('\n')
-                                result_clean = '\n'.join([l for l in lines if not l.startswith('```')])
-                            
-                            batch_results = json.loads(result_clean)['results']
-                            
-                            # Update each SKU in the batch
-                            for result_item in batch_results:
-                                sku_name = result_item['sku']
-                                category = result_item['category']
-                                
-                                # Find the SKU in our data and update
-                                for idx in range(batch_start, batch_end):
-                                    if st.session_state.sku_data[idx]['sku_name'] == sku_name:
-                                        st.session_state.sku_data[idx]['category'] = category
-                                        # IMPORTANT: Update widget state directly.
-                                        # Streamlit selectboxes read from st.session_state[key], not from sku_data.
-                                        # Both must be updated for the UI to reflect the change.
-                                        st.session_state[f"cat_{idx}"] = category
-                                        print(f"[OK] Set category for '{sku_name}' to: {category}")
-                                        break
-                            
-                            processed = batch_end
-                            
-                        except Exception as e:
-                            print(f"[ERROR] Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
-                            st.error(f"Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
-                        
-                        progress_bar.progress(processed / total_skus)
-                    
-                    progress_bar.empty()
-                    
-                    # Show usage summary for this operation
-                    total_tokens = sum(s['total_tokens'] for s in batch_usage_stats)
-                    total_cost = sum(s['total_cost'] for s in batch_usage_stats)
-                    st.success(f"✅ Categories found for {processed} SKUs! | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
-                    st.rerun()
-    
-    with col2:
-        if st.button("� Find Basic Types", disabled=not all_files_loaded, use_container_width=True):
-            if all_files_loaded:
-                with st.spinner("Finding basic types in batches..."):
-                    # Group SKUs by category
-                    category_groups = {}
-                    for idx, item in enumerate(st.session_state.sku_data):
-                        if item['category']:
-                            cat = item['category']
-                            if cat not in category_groups:
-                                category_groups[cat] = []
-                            category_groups[cat].append((idx, item['sku_name'], item['category']))
-                    
-                    total_skus = sum([len(group) for group in category_groups.values()])
-                    processed = 0
-                    progress_bar = st.progress(0)
-                    batch_usage_stats = []
-                    
-                    # Process each category group in batches
-                    for category, sku_list in category_groups.items():
-                        print(f"\n>>> Processing Category: {category} ({len(sku_list)} SKUs)")
-                        
-                        # Get basic types for this category
-                        # Category is in column 1 (Category Tag Type), Basic Types in column 0 (Basic Tag Type)
-                        basic_type_list = st.session_state.mapping_cat_bt_df.loc[
-                            st.session_state.mapping_cat_bt_df.iloc[:, 1] == category,
-                            st.session_state.mapping_cat_bt_df.columns[0]
-                        ].tolist()
-                        
-                        if not basic_type_list or len(basic_type_list) == 0:
-                            print(f"[ERROR] No basic types found for category: {category}")
-                            processed += len(sku_list)
-                            continue
-                        
-                        # Flatten if nested list
-                        if isinstance(basic_type_list[0], list):
-                            basic_type_list = basic_type_list[0]
-                        
-                        # Process this category's SKUs in batches
-                        for batch_start in range(0, len(sku_list), BASIC_TYPE_BATCH_SIZE):
-                            batch_end = min(batch_start + BASIC_TYPE_BATCH_SIZE, len(sku_list))
-                            batch_items = sku_list[batch_start:batch_end]
-                            batch_sku_cat = [(sku, cat) for idx, sku, cat in batch_items]
-                            
-                            print(f"  >> Batch {batch_start+1}-{batch_end} of {len(sku_list)}")
-                            
-                            try:
-                                result, usage_stats = gpt_call_with_usage(
-                                    open_api_key, api_version, azure_endpoint, deployment_name,
-                                    batch_basictype_prompt(batch_sku_cat, basic_type_list)
-                                )
-                                
-                                # Track usage stats
-                                usage_stats['operation'] = 'Find Basic Types'
-                                usage_stats['batch'] = f"{category}: {batch_start+1}-{batch_end}"
-                                batch_usage_stats.append(usage_stats)
-                                st.session_state.api_usage_stats.append(usage_stats)
-                                st.session_state.total_session_cost += usage_stats['total_cost']
-                                st.session_state.total_session_tokens += usage_stats['total_tokens']
-                                
-                                # Log to Google Sheets
-                                log_gpt_cost_to_sheets(usage_stats, {
-                                    'sku_count': batch_end - batch_start,
-                                    'notes': f'Batch processing for category: {category}'
-                                })
-                                
-                                # Clean result to remove markdown code fences
-                                result_clean = result.strip()
-                                if result_clean.startswith('```'):
-                                    lines = result_clean.split('\n')
-                                    result_clean = '\n'.join([l for l in lines if not l.startswith('```')])
-                                
-                                batch_results = json.loads(result_clean)['results']
-                                
-                                # Update each SKU in the batch
-                                for result_item in batch_results:
-                                    sku_name = result_item['sku']
-                                    basic_type = result_item['basic_type']
-                                    
-                                    # Find the SKU in our data and update
-                                for idx, orig_sku, _ in batch_items:
-                                    if orig_sku == sku_name:
-                                        st.session_state.sku_data[idx]['basic_type'] = basic_type
-                                        # IMPORTANT: Update widget state directly.
-                                        # Streamlit selectboxes read from st.session_state[key], not from sku_data.
-                                        # Both must be updated for the UI to reflect the change.
-                                        st.session_state[f"bt_{idx}"] = basic_type
-                                        # This is the actual selectbox key for Basic Type column,
-                                        # so update it as well to reflect GPT changes in the UI.
-                                        st.session_state[f"bt_select_{idx}"] = basic_type
-                                        print(f"  [OK] Set basic type for '{sku_name}' to: {basic_type}")
-                                        break
-                                
-                            except Exception as e:
-                                print(f"  [ERROR] Error processing batch: {str(e)}")
-                                st.error(f"Error processing batch in category {category}: {str(e)}")
-                            
-                            processed += (batch_end - batch_start)
-                            progress_bar.progress(processed / total_skus)
-                    
-                    progress_bar.empty()
-                    
-                    # Show usage summary for this operation
-                    total_tokens = sum(s['total_tokens'] for s in batch_usage_stats)
-                    total_cost = sum(s['total_cost'] for s in batch_usage_stats)
-                    st.success(f"✅ Basic types found for {processed} SKUs! | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
-                    st.rerun()
-
-    with col3:
         if st.button("🔍 Find Basic Type and Category", disabled=not all_files_loaded, use_container_width=True):
             if all_files_loaded:
                 with st.spinner("Finding basic types and categories in batches..."):
@@ -880,7 +739,7 @@ if st.session_state.sku_data:
                         st.success(f"✅ BT & Categories found for {processed} SKUs! | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
                     st.rerun()
 
-    with col4:
+    with col2:
         if st.button("🏷️ Find Generic Keywords", disabled=not all_files_loaded, use_container_width=True):
             if all_files_loaded:
                 with st.spinner("Finding generic keywords..."):
@@ -1057,8 +916,70 @@ if st.session_state.sku_data:
     div[data-testid="stColumn"]:nth-child(5) div[data-testid="stVerticalBlock"] {
         gap: 0 !important;
     }
+    /* Fix: Constrain st_tags iframe within the Generic Keywords column */
+    div[data-testid="stColumn"]:nth-child(5) iframe {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
     </style>
     """, unsafe_allow_html=True)
+
+    # Fix: Inject CSS into st_tags iframes to constrain rti--container width,
+    # and clear residual suggestion text on blur.
+    components.html("""
+    <script>
+    (function() {
+        function fixTagsIframes() {
+            try {
+                var parentDoc = window.parent.document;
+                var iframes = parentDoc.querySelectorAll('iframe');
+                for (var i = 0; i < iframes.length; i++) {
+                    try {
+                        var doc = iframes[i].contentDocument || iframes[i].contentWindow.document;
+                        if (!doc) continue;
+                        var container = doc.querySelector('.rti--container');
+                        if (container && !doc.querySelector('#fix-tags-overflow')) {
+                            var style = doc.createElement('style');
+                            style.id = 'fix-tags-overflow';
+                            style.textContent = [
+                                '.rti--container {',
+                                '  max-width: 100% !important;',
+                                '  width: 100% !important;',
+                                '  flex-wrap: wrap !important;',
+                                '  overflow: hidden !important;',
+                                '  box-sizing: border-box !important;',
+                                '}',
+                                '.rti--input {',
+                                '  max-width: 100% !important;',
+                                '  box-sizing: border-box !important;',
+                                '  min-width: 80px !important;',
+                                '  width: auto !important;',
+                                '}',
+                                '.rah-input-wrapper {',
+                                '  max-width: 100% !important;',
+                                '  overflow: hidden !important;',
+                                '}'
+                            ].join('\\n');
+                            doc.head.appendChild(style);
+                        }
+                        // Also clear residual suggestion text in unfocused inputs
+                        var input = doc.querySelector('.rti--input');
+                        if (input && !input.matches(':focus') && input.value.trim() !== '') {
+                            var nativeSetter = Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype, 'value'
+                            ).set;
+                            nativeSetter.call(input, '');
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    } catch(e) {}
+                }
+            } catch(e) {}
+        }
+        setInterval(fixTagsIframes, 500);
+    })();
+    </script>
+    """, height=0)
     
     # Table header
     header_cols = st.columns([0.3, 3, 1.7, 1.7, 3.8])
@@ -1241,9 +1162,22 @@ if st.session_state.sku_data:
                 suggestions=gk_options if gk_options else [],
                 key=f"tags_{idx}_v{st.session_state.gk_version}"  # Version changes only after GPT updates
             )
-            # Update the data if keywords changed (sync happens on CSV export, not immediately)
+            # Update the data if keywords changed
             if selected_keywords != current_keywords:
-                st.session_state.sku_data[idx]['generic_keywords'] = selected_keywords
+                # Capitalize first letter of each keyword and detect duplicates
+                normalized = []
+                duplicate_found = None
+                seen_lower = set()
+                for kw in selected_keywords:
+                    kw_cap = kw[:1].upper() + kw[1:] if kw else kw
+                    if kw_cap.lower() in seen_lower:
+                        duplicate_found = kw_cap
+                        continue  # skip duplicate
+                    seen_lower.add(kw_cap.lower())
+                    normalized.append(kw_cap)
+                if duplicate_found:
+                    st.toast(f"⚠️ '{duplicate_found}' already exists in row {idx + 1}", icon="⚠️")
+                st.session_state.sku_data[idx]['generic_keywords'] = normalized
         
         st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
     
