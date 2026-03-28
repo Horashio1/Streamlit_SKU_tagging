@@ -527,3 +527,61 @@ def category_prompt(sku_name, category_list):
             {{"selected_keywords": "best_matching_category_1"}}
 
             """
+
+
+def batch_embedding_bt_category_prompt(sku_candidates_list):
+    """
+    Generate prompt for batch basic type + category selection using embedding-filtered candidates.
+    Each SKU has its own shortlist of candidate basic types (with categories and similarity scores)
+    pre-filtered via embedding similarity.
+    
+    Args:
+        sku_candidates_list: List of dicts, each containing:
+            - 'sku_name': str
+            - 'candidates': list of dicts with 'basic_type', 'category', 'similarity'
+    
+    Returns:
+        str: Formatted prompt for GPT
+    """
+    sku_sections = []
+    for i, item in enumerate(sku_candidates_list):
+        candidate_lines = ", ".join(
+            [f"{c['basic_type']} ({c['category']})" for c in item['candidates']]
+        )
+        sku_sections.append(f"{i+1}. **{item['sku_name']}**\n   Candidates: {candidate_lines}")
+
+    sku_text = "\n".join(sku_sections)
+
+    return f"""
+            You are an expert in food product classification for a large e-commerce food delivery platform.
+
+            Your task is to analyze each food SKU name and select the most appropriate basic type AND category
+            from its pre-filtered candidate list. Each SKU has a shortlist of the most relevant basic types
+            (with their categories) already identified via embedding similarity.
+
+            ### INSTRUCTIONS
+            1. Process each SKU independently.
+            2. For each SKU, carefully read the name to understand the product's food type, brand, ingredients, and form.
+            3. Each SKU has its own shortlist of candidate basic types with their categories. Select the BEST match.
+            4. Select exactly ONE basic type and its corresponding category for each SKU.
+            5. If multiple candidates seem similar, choose the most specific and accurate one.
+            6. **If NO candidate basic type matches the product well**, you may suggest a new one:
+               - Set "is_new_bt" to true and provide a "suggested_bt" value.
+               - Still select the most appropriate category from the candidates.
+            7. If a candidate matches well, set "is_new_bt" to false and "suggested_bt" to null.
+            8. IMPORTANT: Respond **only** with valid JSON — no Markdown, no code fences, and no extra text.
+
+            ### INPUTS
+            {sku_text}
+
+            ### OUTPUT FORMAT
+            Respond exactly like this (without code fences or additional text):
+            {{
+                "results": [
+                    {{"sku": "SKU_name_1", "basic_type": "selected_basic_type_1", "category": "category_1", "is_new_bt": false, "suggested_bt": null}},
+                    {{"sku": "SKU_name_2", "basic_type": "closest_existing_bt", "category": "category_2", "is_new_bt": true, "suggested_bt": "Suggested New Type"}},
+                    ...
+                ]
+            }}
+
+            """
