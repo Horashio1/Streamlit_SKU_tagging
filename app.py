@@ -981,6 +981,32 @@ if st.session_state.sku_data:
     </script>
     """, height=0)
     
+    @st.fragment
+    def _render_keywords_fragment(idx, gk_options):
+        """Render keyword tags in an isolated fragment to avoid full-page reruns on rapid edits."""
+        current_keywords = st.session_state.sku_data[idx]['generic_keywords']
+        selected_keywords = st_tags(
+            label='',
+            text='Add keyword...',
+            value=current_keywords,
+            suggestions=gk_options if gk_options else [],
+            key=f"tags_{idx}_v{st.session_state.gk_version}"
+        )
+        if selected_keywords != current_keywords:
+            normalized = []
+            duplicate_found = None
+            seen_lower = set()
+            for kw in selected_keywords:
+                kw_cap = kw[:1].upper() + kw[1:] if kw else kw
+                if kw_cap.lower() in seen_lower:
+                    duplicate_found = kw_cap
+                    continue
+                seen_lower.add(kw_cap.lower())
+                normalized.append(kw_cap)
+            if duplicate_found:
+                st.toast(f"⚠️ '{duplicate_found}' already exists in row {idx + 1}", icon="⚠️")
+            st.session_state.sku_data[idx]['generic_keywords'] = normalized
+
     # Table header
     header_cols = st.columns([0.3, 3, 1.7, 1.7, 3.8])
     with header_cols[0]:
@@ -1149,35 +1175,9 @@ if st.session_state.sku_data:
                     st.button("✓", key=f"accept_bt_{idx}", on_click=accept_suggestion, help="Use this suggestion")
         
         with cols[4]:
-            # Use streamlit-tags for generic keywords with suggestions
-            # NOTE: st_tags does NOT use session state like native Streamlit widgets.
-            # It reads from the 'value' parameter, so we must pass the current data directly.
-            # Key includes gk_version which only changes after GPT updates (not manual edits)
-            # This allows GPT results to load while preventing freezes on manual keyword changes.
-            current_keywords = st.session_state.sku_data[idx]['generic_keywords']
-            selected_keywords = st_tags(
-                label='',
-                text='Add keyword...',
-                value=current_keywords,
-                suggestions=gk_options if gk_options else [],
-                key=f"tags_{idx}_v{st.session_state.gk_version}"  # Version changes only after GPT updates
-            )
-            # Update the data if keywords changed
-            if selected_keywords != current_keywords:
-                # Capitalize first letter of each keyword and detect duplicates
-                normalized = []
-                duplicate_found = None
-                seen_lower = set()
-                for kw in selected_keywords:
-                    kw_cap = kw[:1].upper() + kw[1:] if kw else kw
-                    if kw_cap.lower() in seen_lower:
-                        duplicate_found = kw_cap
-                        continue  # skip duplicate
-                    seen_lower.add(kw_cap.lower())
-                    normalized.append(kw_cap)
-                if duplicate_found:
-                    st.toast(f"⚠️ '{duplicate_found}' already exists in row {idx + 1}", icon="⚠️")
-                st.session_state.sku_data[idx]['generic_keywords'] = normalized
+            # Render keywords in a fragment to prevent full-page reruns on rapid edits
+            # This avoids WebSocket "Cached ForwardMsg MISS" errors when quickly deleting keywords
+            _render_keywords_fragment(idx, gk_options)
         
         st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
     
