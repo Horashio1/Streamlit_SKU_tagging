@@ -61,6 +61,12 @@ if 'session_id' not in st.session_state:
 if 'suggested_new_bts' not in st.session_state:
     # Store suggested new basic types: {sku_idx: {'suggested_bt': '...', 'category': '...'}}
     st.session_state.suggested_new_bts = {}
+if 'multi_cat_bts' not in st.session_state:
+    # Basic types mapped to multiple categories: {bt_name: [cat1, cat2, ...]}
+    st.session_state.multi_cat_bts = {}
+if 'needs_category_review' not in st.session_state:
+    # Set of SKU indices whose category needs manual review (multi-category BT)
+    st.session_state.needs_category_review = set()
 if 'accepted_new_bts' not in st.session_state:
     # Store accepted new basic types for export: {'bt_name': {'category': '...', 'generic_keywords': [...]}}
     st.session_state.accepted_new_bts = {}
@@ -429,6 +435,16 @@ if not st.session_state.sheets_loaded:
                 'Category': st.session_state.mapping_cat_bt_df.iloc[:, 1].unique()
             })
             print(f"\n[OK] Categories extracted: {len(st.session_state.category_df)} unique categories")
+            
+            # Identify basic types mapped to multiple categories
+            bt_col = st.session_state.mapping_cat_bt_df.columns[0]
+            cat_col = st.session_state.mapping_cat_bt_df.columns[1]
+            bt_cats = st.session_state.mapping_cat_bt_df.groupby(bt_col)[cat_col].apply(lambda x: list(x.unique())).to_dict()
+            st.session_state.multi_cat_bts = {bt: cats for bt, cats in bt_cats.items() if len(cats) > 1}
+            if st.session_state.multi_cat_bts:
+                print(f"[INFO] Found {len(st.session_state.multi_cat_bts)} basic types mapped to multiple categories:")
+                for bt, cats in st.session_state.multi_cat_bts.items():
+                    print(f"  - {bt}: {cats}")
         
         # Extract unique basic types from the mapping
         if st.session_state.mapping_bt_gk_df is not None:
@@ -644,8 +660,9 @@ if st.session_state.sku_data:
                     processed = 0
                     batch_usage_stats = []
                     
-                    # Clear previous suggestions
+                    # Clear previous suggestions and review flags
                     st.session_state.suggested_new_bts = {}
+                    st.session_state.needs_category_review = set()
                     
                     # Process in batches
                     for batch_start in range(0, total_skus, BT_CATEGORY_BATCH_SIZE):
@@ -702,6 +719,11 @@ if st.session_state.sku_data:
                                         # so update it as well to reflect GPT changes in the UI.
                                         st.session_state[f"bt_select_{idx}"] = basic_type
                                         st.session_state[f"cat_{idx}"] = category
+                                        
+                                        # Flag if this basic type is mapped to multiple categories
+                                        if basic_type in st.session_state.multi_cat_bts:
+                                            st.session_state.needs_category_review.add(idx)
+                                            print(f"[REVIEW] '{sku_name}' has multi-category BT '{basic_type}' -> categories: {st.session_state.multi_cat_bts[basic_type]}")
                                         
                                         # Handle suggested new basic type
                                         if is_new_bt and suggested_bt:
@@ -912,6 +934,15 @@ if st.session_state.sku_data:
         -webkit-text-fill-color: #000000 !important;
         opacity: 1 !important;
     }
+    /* Highlight category selectbox for multi-category basic types */
+    div[data-testid="stColumn"]:has(.cat-needs-review) div[data-baseweb="select"] > div {
+        border: 2px solid #ff4b4b !important;
+        box-shadow: 0 0 4px rgba(255, 75, 75, 0.4) !important;
+    }
+    /* Remove gap in category column when it has the review warning */
+    div[data-testid="stColumn"]:has(.cat-needs-review) div[data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
     /* Remove gap in the last column (Generic Keywords) for table rows only */
     div[data-testid="stColumn"]:nth-child(5) div[data-testid="stVerticalBlock"] {
         gap: 0 !important;
@@ -1047,12 +1078,29 @@ if st.session_state.sku_data:
             if f"cat_{idx}" not in st.session_state:
                 st.session_state[f"cat_{idx}"] = item['category']
             
+            # Dynamically check if the current basic type is mapped to multiple categories
+            current_bt_for_review = st.session_state.get(f"bt_select_{idx}", item.get('basic_type', ''))
+            needs_review = current_bt_for_review in st.session_state.multi_cat_bts
+            if needs_review:
+                # Hidden marker div - CSS :has() selector will highlight the selectbox
+                st.markdown(
+                    '<div class="cat-needs-review" style="display:none;"></div>',
+                    unsafe_allow_html=True
+                )
+            
             selected_category = st.selectbox(
                 "Cat",
                 options=category_options,
                 key=f"cat_{idx}",
                 label_visibility="collapsed"
             )
+            
+            if needs_review:
+                possible_cats_str = ', '.join(st.session_state.multi_cat_bts.get(current_bt_for_review, []))
+                st.markdown(
+                    f'<small style="color: #ff4b4b;">⚠️ {current_bt_for_review} in: {possible_cats_str}</small>',
+                    unsafe_allow_html=True
+                )
             
             # Sync selectbox value back to sku_data
             if selected_category != item['category']:
