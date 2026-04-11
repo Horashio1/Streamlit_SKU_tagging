@@ -1,0 +1,51 @@
+SKU Name,Expected Category,Predicted Category,Category Result,Expected Basic Type,Predicted Basic Type,BT Result,GK Recall (%),Missing GKs,Extra GKs
+Fontana Pomegranate Juice 1l,Groceries,Groceries,✅ PASS,Fruit Drink,Pomegranate Juice,❌ FAIL,0.0,"Juice, Pomegranate Juice, Fruit Drink, Groceries, Fontana Pomegranate Juice, Fontana",
+Kids Joy Baby Lanundry Detergent 1l,Baby Care,Baby Care,✅ PASS,Baby Detergent Liquid,Baby Detergent Liquid,✅ PASS,100.0,,Baby Laundry
+Marvel Lady Tampons 10s,Personal Care,Personal Care,✅ PASS,Tampons,Tampons,✅ PASS,75.0,Marvel Tampons,
+Keells Krest Jumbo Peanut Chilli 100G,Groceries,Groceries,✅ PASS,Peanuts,Jumbo Peanuts,❌ FAIL,14.3,"Keels Peanuts, Peanuts, Nuts, Groceries, Keells Krest Peanuts, Chilli Peanuts",Hot and Spicy Jumbo Peanuts
+Finch Gourment Turkish Dried Figs 75g,Groceries,Groceries,✅ PASS,Dried Fruit,Dried Fruit,✅ PASS,100.0,,
+Fortune Biriyani Special Basmathi Rice 1kg,Groceries,Groceries,✅ PASS,Basmathi Rice,Basmathi Rice,✅ PASS,100.0,,
+Maped Color Pencil Box-color Peps 12,Stationery,Stationery,✅ PASS,Colour Pencil,Colour Pencil,✅ PASS,100.0,,
+Mas Roasted Curry Powder 100g,Groceries,Groceries,✅ PASS,Curry Powder,Roasted Curry Powder,❌ FAIL,0.0,"Spices, Mas Roasted Curry Powder, Roasted Curry Powder, Curry Powder, Groceries",
+Mister Potato Original 145G,Groceries,Groceries,✅ PASS,Potato Chips,Potato Chips,✅ PASS,100.0,,"Snacks, Chips"
+Kotmale Cheese Slices 200g,Dairy,Dairy,✅ PASS,Cheese Slices,Cheese Slices,✅ PASS,100.0,,
+Nescafe Classic Bag In Box 12x50g,Groceries,Groceries,✅ PASS,Instant Coffee,Instant Coffee,✅ PASS,80.0,Coffee,Beverage
+La Treats Fruit & Nuts Cookies 105g,Groceries,Groceries,✅ PASS,Cookies,Cookies,✅ PASS,83.3,Biscuit,
+Jovees Face Scrub Jojoba And Neem 100g,Personal Care,Personal Care,✅ PASS,Face Scrub,Face Scrub,✅ PASS,100.0,,Herbal Face Scrub
+Kandos Chocolate Super Large Milk 80g,Groceries,Groceries,✅ PASS,Chocolate,Chocolate,✅ PASS,50.0,"Kandos Milk Chocolate, Kandos Milk Chocolate Bar, Chocolate Bar, Kandos Chocolate Bar",Kandos Super Large Milk Chocolate
+Magic Vanilla 1l,Dairy,Groceries,❌ FAIL,Ice Cream Tub,Vanilla Essence,❌ FAIL,0.0,"Dairy, Ice Cream, Magic Vanilla Ice Cream, Magic Ice Cream, Vanilla Ice Cream","Groceries, Baking Goods, Vanilla Essence"
+Goldi Kochchi Sausage 600g,Frozen Foods,Frozen Foods,✅ PASS,Sausage,Sausage,✅ PASS,83.3,Kochi Sausage,
+Cic Sudu Suduru Rice 1kg,Groceries,Groceries,✅ PASS,Suduru Samba,Suduru Samba,✅ PASS,75.0,"Suduru Samba Rice, White Suduru",
+Dettol Soap Lasting Fresh 70g,Personal Care,Personal Care,✅ PASS,Soap,Soap,✅ PASS,100.0,,
+MALIBAN FRESH MILK UHT 1L,Dairy,Dairy,✅ PASS,Fresh Milk,Fresh Milk,✅ PASS,100.0,,
+Nan 2 Hm-o Follow Up Formula 6-12 Months 400g,Baby Care,Baby Care,✅ PASS,Baby Milk Powder,Baby Milk Powder,✅ PASS,75.0,"Nestle Nangrow 3 Milk Powder, Baby Care",Infant Milk Powder
+Campagna Whole Peeled Tomatoes 800g,Groceries,Groceries,✅ PASS,Whole Peeled Tomatoes,Whole Peeled Tomatoes,✅ PASS,100.0,,Tomatoes
+Cuisine Calamari Milky Fried 300g,Frozen Foods,Frozen Foods,✅ PASS,Calamari,Calamari,✅ PASS,66.7,Cuisine,Seafood
+Ahmad Tea Chai Spice Tea 100g,Groceries,Groceries,✅ PASS,Chai Tea,Chai Tea,✅ PASS,100.0,,Chai Tea
+Magic Fruit & Nut Stick 75ml,Dairy,Frozen Foods,❌ FAIL,Cone Ice Cream,Frozen Foods,❌ FAIL,0.0,"Magic Fruit and Nut Ice Cream, Fruit and Nut Ice Cream, Dairy, Ice Cream, Magic Ice Cream, Magic Fruit and Nut Ice Cream Stick",
+Motha Cocoa Powder 100g,Groceries,Groceries,✅ PASS,Cocoa Powder,Cocoa Powder,✅ PASS,100.0,,Baking Goods
+Prevence Body Lotion Fresh Relaxing 300ml,Personal Care,Personal Care,✅ PASS,Body Lotion,Body Lotion,✅ PASS,100.0,,
+Bairaha Kochchi & Nai Miris Sausages 250g,Poultry and Meat,Frozen Foods,❌ FAIL,Sausage,Sausage,✅ PASS,100.0,,
+Real Tasty Devilled Dhal 200g,Groceries,Groceries,✅ PASS,Devilled Dhal,Devilled Dhal,✅ PASS,60.0,"Real Tasty Dhal, Fried Dhal",
+Ma's Fish Ambulthiyal Paste 75g,Groceries,Groceries,✅ PASS,Fish Ambulthiyal Paste,Fish Ambulthiyal Paste,✅ PASS,66.7,Mas Fish Ambulthiyal Paste,
+Munchee Biscuit Choc Shock Blueberry 90g,Groceries,Groceries,✅ PASS,Biscuits,Biscuits,✅ PASS,100.0,,Munchee Choc Shock
+Huejay Cape Goosberry 180g,Fresh Produce,Fresh Produce,✅ PASS,Cape Gooseberry,Cape Gooseberry,✅ PASS,100.0,,
+Samaayu Kolakenda Gotukola 50g,Groceries,Groceries,✅ PASS,Kolakenda,Kolakenda,✅ PASS,60.0,"Samaayu Kola Soup, Herbal Porridge",Samaayu Kolakanda
+Kandos Milk Chocolate Bar 45g,Groceries,Groceries,✅ PASS,Chocolate,Chocolate Bar,❌ FAIL,25.0,"Chocolate, Kandos Chocolate, Kandos Milk Chocolate, Kandos Milk Chocolate Bar, Milk Chocolate, Kandos Chocolate Bar",
+Nandos Peri Peri Sauce Xx Hot 250g,Groceries,Groceries,✅ PASS,Peri Peri Sauce,Peri Peri Sauce,✅ PASS,87.5,Groceries,
+Alerics Ice Cream Salted Caramel With Honey Comb 1000ml,Dairy,Dairy,✅ PASS,Ice Cream Tub,Ice Cream,❌ FAIL,40.0,"Alerics Salted Caramel Ice Cream, Salted Caramel Ice Cream, Alerics Ice Cream",
+Pears Baby Talc Pure & Gentle 90g,Baby Care,Baby Care,✅ PASS,Baby Powder,Baby Powder,✅ PASS,75.0,Pure and Gentle Baby Talc,
+Gold 3 In 1 Mens Face Cream 25g,Personal Care,Personal Care,✅ PASS,Face Cream,Face Cream,✅ PASS,80.0,Glow And Handsome Face Cream,
+Shepherd'S Delight Chocolate Chip Cookies 100G,Groceries,Groceries,✅ PASS,Cookies,Cookies,✅ PASS,83.3,Biscuit,
+Maliban Biscuit Krisco 170g,Groceries,Groceries,✅ PASS,Biscuits,Biscuits,✅ PASS,100.0,,
+Harischandra String Hopper Flour White Rice 700g,Groceries,Groceries,✅ PASS,String Hopper Flour,String Hopper Flour,✅ PASS,100.0,,
+Nature Coriander Seed 100g,Groceries,Groceries,✅ PASS,Coriander Seeds,Coriander Seeds,✅ PASS,100.0,,
+Sunsilk Thick & Long Shampoo 1l,Personal Care,Personal Care,✅ PASS,Sunsilk,Shampoo,❌ FAIL,50.0,"Sunsilk Shampoo Thick and Long, Sunsilk Shampoo",
+Dettol Soap Skincare 100g,Personal Care,Personal Care,✅ PASS,Soap,Soap,✅ PASS,100.0,,
+Viana Dressing Scissor Vhso1 1pcs,Personal Care,Stationery,❌ FAIL,Scissor,Scissor,✅ PASS,66.7,Personal Care,Stationery
+David Garlic Murukku 100g,Groceries,Groceries,✅ PASS,Murukku,Murukku,✅ PASS,100.0,,Snacks
+Heinz Tuna Chunck In Sunflower Oil 160g,Groceries,Groceries,✅ PASS,Canned Tuna,Canned Tuna,✅ PASS,100.0,,
+Fondre Fat Spread 250g,Dairy,Groceries,❌ FAIL,Butter,Spreads,❌ FAIL,0.0,"Butter, Fondre Fat Spread, Dairy, Fat Spread","Spreads, Plant Based Spread, Groceries, Spread"
+Lanka Sumeda Anti Mosquito Incense Stick 30s,Household,Household,✅ PASS,Repellant Incense Stick,Mosquito Repellent,❌ FAIL,0.0,"Mosquito Repellant Incense Stick, HouseholdRepellant Incense Stick","Household, Mosquito Repellent Incense Sticks, Repellent Incense Sticks, Mosquito Repellent"
+Close Up Tooth Paste Gel Pepermint 30g,Personal Care,Personal Care,✅ PASS,Toothpaste,Toothpaste,✅ PASS,66.7,Closeup Toothpaste,
+Tiptop Plastic Commode Brush,Household,Household,✅ PASS,Commode Brush,Commode Brush,✅ PASS,75.0,Commode Scrub,

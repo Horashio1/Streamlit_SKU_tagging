@@ -78,8 +78,14 @@ if 'skus_loaded' not in st.session_state:
     st.session_state.skus_loaded = False
 if 'fetch_error' not in st.session_state:
     st.session_state.fetch_error = None
+if 'page_index' not in st.session_state:
+    st.session_state.page_index = 0
 
-ROWS_PER_PAGE = 15
+ROWS_PER_PAGE = 10
+MAX_SKUS_PER_BATCH = 200  # Max SKUs to fetch from sheet at oncete.page_index = 0
+
+ROWS_PER_PAGE = 10
+MAX_SKUS_PER_BATCH = 200  # Max SKUs to fetch from sheet at once
 
 # Load mapping files from Google Sheets
 import os
@@ -382,9 +388,9 @@ def get_existing_gk_for_basic_type(basic_type):
     return result
 
 
-def fetch_pending_skus(limit=ROWS_PER_PAGE):
+def fetch_pending_skus(limit=MAX_SKUS_PER_BATCH):
     """
-    Fetch the next batch of untagged SKUs from the 'SKU Names' Google Sheet.
+    Fetch ALL untagged SKUs from the 'SKU Names' Google Sheet.
     Returns list of {row, sku_name} dicts and total_pending count.
     Returns (None, error_msg) on API error vs ([], 0) when all tagged.
     """
@@ -427,16 +433,29 @@ def fetch_pending_skus(limit=ROWS_PER_PAGE):
 
 def save_current_page_to_sheet():
     """
-    Save the current page's tags (Category, Basic Type, GKs) back to the 'SKU Names' sheet.
-    Only saves SKUs that have at least a Category or Basic Type set.
+    Save the CURRENT PAGE's tags (Category, Basic Type, GKs) back to the 'SKU Names' sheet.
+    Only saves SKUs on the current page that have at least a Category or Basic Type set.
     Returns True if successful.
     """
     if not GOOGLE_SHEETS_WEBAPP_URL:
         print("[WARN] Google Sheets Web App URL not configured.")
         return False
     
+    # Calculate current page slice
+    start = st.session_state.page_index * ROWS_PER_PAGE
+    end = min(start + ROWS_PER_PAGE, len(st.session_state.sku_data))
+    
     updates = []
-    for i, item in enumerate(st.session_state.sku_data):
+    for i in range(start, end):
+        item = st.session_state.sku_data[i]
+    
+    # Calculate current page slice
+    start = st.session_state.page_index * ROWS_PER_PAGE
+    end = min(start + ROWS_PER_PAGE, len(st.session_state.sku_data))
+    
+    updates = []
+    for i in range(start, end):
+        item = st.session_state.sku_data[i]
         if not item.get('category') and not item.get('basic_type'):
             continue
         row = st.session_state.sku_sheet_rows[i] if i < len(st.session_state.sku_sheet_rows) else None
@@ -474,16 +493,16 @@ def save_current_page_to_sheet():
                 print(f"[ERROR] update_sku_tags failed: {result.get('error')}")
                 return False
         else:
-            print(f"[ERROR] update_sku_tags HTTP {response.status_code}")
+            print(f"[ERROR] HTTP {response.status_code}: {response.text}")
             return False
-    except Exception as e:
-        print(f"[ERROR] save_current_page_to_sheet: {str(e)}")
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] save_current_page_to_sheet request failed: {e}")
         return False
 
 
 def load_sku_page():
-    """Fetch next batch of pending SKUs and initialize sku_data for the current page."""
-    skus, total_pending = fetch_pending_skus(ROWS_PER_PAGE)
+    """Fetch ALL pending SKUs and initialize sku_data. Page 0 is shown first."""
+    skus, total_pending = fetch_pending_skus(MAX_SKUS_PER_BATCH)
     
     # skus=None means API error; skus=[] means genuinely no pending SKUs
     if skus is None:
@@ -507,7 +526,7 @@ def load_sku_page():
     if st.session_state.sku_data:
         for old_idx in range(len(st.session_state.sku_data)):
             for prefix in ['cat_', 'bt_', 'tags_', 'bt_select_', 'bt_custom_', 'sku_',
-                           'accept_new_bt_', 'accept_bt_']:
+                           'accept_new_bt_', 'accept_bt_', 'new_gk_']:
                 key = f"{prefix}{old_idx}"
                 if key in st.session_state:
                     del st.session_state[key]
@@ -516,6 +535,7 @@ def load_sku_page():
     st.session_state.sku_sheet_rows = []
     st.session_state.suggested_new_bts = {}
     st.session_state.needs_category_review = set()
+    st.session_state.page_index = 0
     
     for idx, sku_info in enumerate(skus):
         st.session_state.sku_data.append({
@@ -525,13 +545,23 @@ def load_sku_page():
             'generic_keywords': []
         })
         st.session_state.sku_sheet_rows.append(sku_info['row'])
-        # Initialize widget state
-        st.session_state[f"cat_{idx}"] = ''
-        st.session_state[f"bt_{idx}"] = ''
-        st.session_state[f"tags_{idx}"] = []
+    
+    # Initialize widget keys for first page only (others initialized on page nav)
+    _init_page_widget_keys(0)
     
     st.session_state.skus_loaded = True
     print(f"[OK] Loaded {len(skus)} pending SKUs (of {total_pending} remaining)")
+
+
+def _init_page_widget_keys(page_idx):
+    """Initialize widget session state keys for the given page SKU slice."""
+    start = page_idx * ROWS_PER_PAGE
+    end = min(start + ROWS_PER_PAGE, len(st.session_state.sku_data))
+    for idx in range(start, end):
+        item = st.session_state.sku_data[idx]
+        # Only init multiselect keys (tags) — selectboxes use index param instead
+        if f"tags_{idx}" not in st.session_state:
+            st.session_state[f"tags_{idx}"] = item.get('generic_keywords', [])
 
 
 def load_google_sheet(spreadsheet_id, sheet_gid):
@@ -766,7 +796,10 @@ if not st.session_state.skus_loaded:
 
 # Show status
 if st.session_state.sku_data:
-    st.success(f"✅ Loaded {len(st.session_state.sku_data)} SKUs to tag ({st.session_state.total_pending} total pending)")
+    total_skus = len(st.session_state.sku_data)
+    total_pages = (total_skus + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE
+    current_page = st.session_state.page_index + 1
+    st.success(f"✅ Loaded {total_skus} SKUs to tag | Page {current_page} of {total_pages}")
 elif st.session_state.skus_loaded and st.session_state.total_pending == -1:
     st.error(f"❌ Failed to fetch SKUs from Google Sheets. Have you redeployed the Apps Script?\n\nError: {st.session_state.get('fetch_error', 'Unknown')}")
     if st.button("🔄 Retry"):
@@ -869,12 +902,8 @@ if st.session_state.sku_data:
                                     if st.session_state.sku_data[idx]['sku_name'] == sku_name:
                                         st.session_state.sku_data[idx]['basic_type'] = basic_type
                                         st.session_state.sku_data[idx]['category'] = category
-                                        # Update widget state directly
-                                        st.session_state[f"bt_{idx}"] = basic_type
-                                        # This is the actual selectbox key for Basic Type column,
-                                        # so update it as well to reflect GPT changes in the UI.
-                                        st.session_state[f"bt_select_{idx}"] = basic_type
-                                        st.session_state[f"cat_{idx}"] = category
+                                        # Update sku_data (selectboxes use index from sku_data, not session state keys)
+                                        # No need to set bt_select_ or cat_ widget keys
                                         
                                         # Flag if this basic type is mapped to multiple categories
                                         if basic_type in st.session_state.multi_cat_bts:
@@ -1221,8 +1250,14 @@ if st.session_state.sku_data:
     
     st.divider()
     
-    # Display each SKU as a row
-    for idx, item in enumerate(st.session_state.sku_data):
+    # Pagination: determine current page slice
+    _init_page_widget_keys(st.session_state.page_index)
+    page_start = st.session_state.page_index * ROWS_PER_PAGE
+    page_end = min(page_start + ROWS_PER_PAGE, len(st.session_state.sku_data))
+    page_items = list(enumerate(st.session_state.sku_data))[page_start:page_end]
+    
+    # Display each SKU as a row (only current page)
+    for idx, item in page_items:
         cols = st.columns([0.3, 3, 1.7, 1.7, 3.8])
         
         with cols[0]:
@@ -1233,21 +1268,13 @@ if st.session_state.sku_data:
         
         with cols[2]:
             # STREAMLIT WIDGET STATE PATTERN:
-            # Selectboxes with a 'key' store their value in st.session_state[key].
-            # We do NOT use the 'index' parameter because it conflicts with session state
-            # and causes a warning: "widget created with default value but also had value set via Session State API"
-            # Instead, we:
-            #   1. Initialize st.session_state[key] when SKU data is created
-            #   2. Update st.session_state[key] when programmatically setting values (e.g., GPT results)
-            #   3. Let the selectbox read its value from session state automatically via 'key'
-            #   4. Sync the selected value back to sku_data for export
-            
-            # Ensure widget state is initialized
-            if f"cat_{idx}" not in st.session_state:
-                st.session_state[f"cat_{idx}"] = item['category']
+            # Use index-based rendering for selectboxes so values survive page navigation.
+            # Streamlit clears session_state widget keys when the widget isn't rendered,
+            # so pre-setting session_state[key] doesn't work across pages.
+            # Instead: read value from sku_data, compute index, pass to selectbox.
             
             # Dynamically check if the current basic type is mapped to multiple categories
-            current_bt_for_review = st.session_state.get(f"bt_select_{idx}", item.get('basic_type', ''))
+            current_bt_for_review = item.get('basic_type', '')
             needs_review = current_bt_for_review in st.session_state.multi_cat_bts
             if needs_review:
                 # Hidden marker div - CSS :has() selector will highlight the selectbox
@@ -1255,6 +1282,14 @@ if st.session_state.sku_data:
                     '<div class="cat-needs-review" style="display:none;"></div>',
                     unsafe_allow_html=True
                 )
+            
+            # Always sync session_state widget key from sku_data (source of truth).
+            # This ensures the selectbox reflects auto-tagging results and page navigation.
+            cat_value = item.get('category', '')
+            if cat_value and cat_value in category_options:
+                st.session_state[f"cat_{idx}"] = cat_value
+            elif f"cat_{idx}" not in st.session_state:
+                st.session_state[f"cat_{idx}"] = ''
             
             selected_category = st.selectbox(
                 "Cat",
@@ -1275,11 +1310,13 @@ if st.session_state.sku_data:
                 st.session_state.sku_data[idx]['category'] = selected_category
         
         with cols[3]:
-            # Filter basic types based on selected category for suggestions
-            if item['category'] and st.session_state.mapping_cat_bt_df is not None:
+            # Filter basic types based on selected category
+            # Use selected_category from the just-rendered category selectbox
+            effective_category = selected_category or item.get('category', '')
+            if effective_category and st.session_state.mapping_cat_bt_df is not None:
                 # Category is in column 1 (Category Tag Type), Basic Types in column 0 (Basic Tag Type)
                 filtered_bt = st.session_state.mapping_cat_bt_df.loc[
-                    st.session_state.mapping_cat_bt_df.iloc[:, 1] == item['category'],
+                    st.session_state.mapping_cat_bt_df.iloc[:, 1] == effective_category,
                     st.session_state.mapping_cat_bt_df.columns[0]
                 ].tolist()
                 if filtered_bt and len(filtered_bt) > 0:
@@ -1321,23 +1358,19 @@ if st.session_state.sku_data:
             
             # Build options list - include current value if it's custom (not in standard list)
             current_bt = item['basic_type']
+            
             dropdown_options = bt_suggestions.copy()
             if current_bt and current_bt not in dropdown_options and current_bt != '➕ Type new...':
                 # Insert custom value before the "Type new..." option
                 dropdown_options = dropdown_options[:-1] + [current_bt] + ['➕ Type new...']
             
-            # Selectbox for selecting from existing basic types
+            # Always sync session_state widget key from sku_data (source of truth)
             selectbox_key = f"bt_select_{idx}"
-
-            # STREAMLIT WIDGET STATE PATTERN (same as Category):
-            # Do NOT use the 'index' parameter together with Session State.
-            # Instead, initialize st.session_state[selectbox_key] once, then let the
-            # selectbox read and manage its value solely via this key.
-            if selectbox_key not in st.session_state:
-                # Use current_bt if available, otherwise default to empty option
-                initial_value = current_bt if current_bt in dropdown_options else ''
-                st.session_state[selectbox_key] = initial_value
-
+            if current_bt and current_bt in dropdown_options:
+                st.session_state[selectbox_key] = current_bt
+            elif selectbox_key not in st.session_state:
+                st.session_state[selectbox_key] = ''
+            
             selected_bt = st.selectbox(
                 "BT",
                 options=dropdown_options,
@@ -1403,28 +1436,26 @@ if st.session_state.sku_data:
     # Save & Navigate
     st.header("💾 Save & Continue")
     
-    # Detect all new basic types (both manually entered and from suggestions)
+    # Calculate pagination info
+    total_skus = len(st.session_state.sku_data)
+    total_pages = (total_skus + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE
+    current_page = st.session_state.page_index
+    page_start = current_page * ROWS_PER_PAGE
+    page_end_idx = min(page_start + ROWS_PER_PAGE, total_skus)
+    is_last_page = (current_page + 1) >= total_pages
+    
+    # Detect all new basic types (both manually entered and from suggestions) — current page only
     def detect_new_basic_types():
-        """
-        Detect basic types that are not in the original BT list
-        
-        Returns:
-            dict: Dictionary with bt_name as key and info dict as value
-        """
         all_existing_bts = set()
         if st.session_state.bt_df is not None:
             all_existing_bts = set(st.session_state.bt_df.iloc[:, 0].tolist())
         
         new_bts = {}
-        
-        for item in st.session_state.sku_data:
+        for item in st.session_state.sku_data[page_start:page_end_idx]:
             basic_type = item.get('basic_type', '')
             category = item.get('category', '')
-            
             if not basic_type:
                 continue
-            
-            # Check if this BT is not in the existing list
             if basic_type not in all_existing_bts:
                 if basic_type not in new_bts:
                     new_bts[basic_type] = {
@@ -1432,45 +1463,26 @@ if st.session_state.sku_data:
                         'generic_keywords': set(),
                         'source_sku': item['sku_name']
                     }
-                # Collect generic keywords for this new BT
                 if item.get('generic_keywords'):
                     new_bts[basic_type]['generic_keywords'].update(item['generic_keywords'])
-        
-        # Convert sets to lists
         for bt in new_bts:
             new_bts[bt]['generic_keywords'] = list(new_bts[bt]['generic_keywords'])
-        
         return new_bts
     
-    # Detect manually added generic keywords
+    # Detect manually added generic keywords — current page only
     def detect_new_gk_mappings():
-        """
-        Detect generic keywords that were manually added and not in the original BT_GK mapping
-        
-        Returns:
-            dict: Dictionary with basic_type as key and list of new keywords as value
-        """
         new_mappings = {}
-        
-        for item in st.session_state.sku_data:
+        for item in st.session_state.sku_data[page_start:page_end_idx]:
             basic_type = item.get('basic_type', '')
             current_keywords = item.get('generic_keywords', [])
-            
             if not basic_type or not current_keywords:
                 continue
-            
-            # Get existing keywords for this basic type
             existing_keywords = get_existing_gk_for_basic_type(basic_type)
-            
-            # Find keywords that are not in the existing mapping
             new_keywords = [kw for kw in current_keywords if kw not in existing_keywords]
-            
             if new_keywords:
                 if basic_type not in new_mappings:
                     new_mappings[basic_type] = set()
                 new_mappings[basic_type].update(new_keywords)
-        
-        # Convert sets to lists for JSON serialization
         return {bt: list(keywords) for bt, keywords in new_mappings.items()}
     
     # Show detected new mappings before save
@@ -1496,9 +1508,18 @@ if st.session_state.sku_data:
     
     remaining_after = max(0, st.session_state.total_pending - len(st.session_state.sku_data))
     
-    save_col1, save_col2 = st.columns(2)
-    with save_col1:
-        if st.button("💾 Save Tags to Sheet & Load Next Page", use_container_width=True, type="primary"):
+    # Page navigation info
+    st.markdown(f"**Page {current_page + 1} of {total_pages}** — showing SKUs {page_start + 1}–{page_end_idx} of {total_skus}")
+    
+    nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
+    
+    with nav_col1:
+        if st.button("⬅️ Previous Page", use_container_width=True, disabled=(current_page == 0)):
+            st.session_state.page_index -= 1
+            st.rerun()
+    
+    with nav_col2:
+        if st.button("💾 Save Page to Sheet", use_container_width=True, type="primary"):
             # 1. Add new basic types to mappings
             if new_basic_types:
                 with st.spinner("Adding new basic types to Google Sheets..."):
@@ -1523,16 +1544,18 @@ if st.session_state.sku_data:
                 saved = save_current_page_to_sheet()
             
             if saved:
-                st.success("✅ Tags saved! Loading next batch...")
-                # Reset and load next page
-                st.session_state.skus_loaded = False
-                st.rerun()
+                st.success(f"✅ Page {current_page + 1} saved!")
             else:
                 st.error("❌ Failed to save tags. Check console for details.")
     
-    with save_col2:
-        if st.button("💾 Save Tags Only (Stay on Page)", use_container_width=True):
-            # Save without loading next page
+    with nav_col3:
+        if is_last_page:
+            next_label = "💾 Save & Load New Batch ➡️"
+        else:
+            next_label = "Save & Next Page ➡️"
+        
+        if st.button(next_label, use_container_width=True):
+            # Save current page first
             if new_basic_types:
                 with st.spinner("Adding new basic types..."):
                     for bt_name, bt_info in new_basic_types.items():
@@ -1552,9 +1575,17 @@ if st.session_state.sku_data:
                 saved = save_current_page_to_sheet()
             
             if saved:
-                st.success("✅ Tags saved to Google Sheets!")
+                if is_last_page:
+                    # All pages done — fetch new batch from sheet
+                    st.success("✅ All pages saved! Loading next batch...")
+                    st.session_state.skus_loaded = False
+                    st.rerun()
+                else:
+                    # Advance to next page
+                    st.session_state.page_index += 1
+                    st.rerun()
             else:
                 st.error("❌ Failed to save tags.")
     
     if remaining_after > 0:
-        st.info(f"📋 After saving this page, {remaining_after} SKUs will remain to be tagged.")
+        st.info(f"📋 {remaining_after} additional SKUs in the sheet beyond this batch.")
