@@ -470,6 +470,44 @@ def generic_keyword_prompt(sku_name, category_name, basic_type, generic_keywords
 
             """
 
+
+def batch_generic_keyword_prompt(sku_names, category_name, basic_type, generic_keywords_list):
+    """Prompt for selecting generic keywords for multiple SKUs sharing the same basic type."""
+    sku_list_str = "\n".join(f"  {i+1}. {name}" for i, name in enumerate(sku_names))
+    return f"""
+            You are an expert in food product keyword classification for a large e-commerce food delivery platform.
+
+            Your task is to analyze each of the given food SKU names together with their shared category and basic type,
+            and then select all relevant generic keywords from the provided generic keyword list FOR EACH SKU.
+
+            ### INSTRUCTIONS
+            1. All SKUs below share the same category and basic type.
+            2. For EACH SKU, read the name carefully and select **all keywords that accurately describe that product**.
+            3. The number of selected keywords can vary per SKU. Choose **as many as are relevant**.
+            4. Do not invent new keywords or alter the provided ones.
+            5. Prioritize accuracy and relevance; exclude unrelated or generic words.
+            6. IMPORTANT: Respond **only** with valid JSON — no Markdown, no code fences, and no extra explanations.
+
+            ### INPUTS
+            **Category:** {category_name}
+            **Basic Type:** {basic_type}
+            **Generic Keyword List:** {generic_keywords_list}
+
+            **SKU Names:**
+{sku_list_str}
+
+            ### OUTPUT FORMAT
+            Respond with a JSON object mapping each SKU name (exactly as given) to its selected keywords:
+            {{
+              "results": [
+                {{"sku_name": "exact SKU name 1", "selected_generic_keywords": ["kw1", "kw2", ...]}},
+                {{"sku_name": "exact SKU name 2", "selected_generic_keywords": ["kw1", "kw3", ...]}}
+              ]
+            }}
+
+            """
+
+
 def basictype_prompt(sku_name, category_name, basic_type_list):
     return f"""
             You are an expert in food product classification for a large e-commerce food delivery platform.

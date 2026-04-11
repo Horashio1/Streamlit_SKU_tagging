@@ -129,6 +129,16 @@ function doPost(e) {
       return handleBtUpdateLog(data);
     }
     
+    // Get pending (untagged) SKUs from SKU Names sheet
+    if (data.action === 'get_pending_skus') {
+      return handleGetPendingSkus(data);
+    }
+    
+    // Update SKU tags back into SKU Names sheet
+    if (data.action === 'update_sku_tags') {
+      return handleUpdateSkuTags(data);
+    }
+    
     // Otherwise, handle as GPT cost logging
     // Initialize sheet and get it
     const sheet = initializeSheet();
@@ -597,6 +607,125 @@ function logBtUpdate(sessionId, basicType, category, action, genericKeywords, sk
   } catch (e) {
     // Silently fail logging - don't affect main operation
     Logger.log('Error logging BT update: ' + e.toString());
+  }
+}
+
+/**
+ * Get pending (untagged) SKUs from the 'SKU Names' sheet.
+ * Returns rows where column B (Category) is empty, starting from row 2 (skip header).
+ * 
+ * @param {Object} data - Request data containing:
+ *   - limit: (optional) Max number of SKUs to return. Default 15.
+ * @returns {Object} JSON with {skus: [{row, sku_name}, ...], total_pending}
+ */
+function handleGetPendingSkus(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('SKU Names');
+    
+    if (!sheet) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: false, error: "'SKU Names' sheet not found" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    const limit = data.limit || 15;
+    const lastRow = sheet.getLastRow();
+    
+    if (lastRow < 2) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, skus: [], total_pending: 0 }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Read all data (cols A-D, rows 2 to last)
+    const allData = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+    
+    const pendingSkus = [];
+    let totalPending = 0;
+    
+    for (let i = 0; i < allData.length; i++) {
+      const skuName = allData[i][0];
+      const category = allData[i][1];
+      
+      // Skip rows with no SKU name
+      if (!skuName || String(skuName).trim() === '') continue;
+      
+      // Check if Category (col B) is empty — means untagged
+      if (!category || String(category).trim() === '') {
+        totalPending++;
+        if (pendingSkus.length < limit) {
+          pendingSkus.push({
+            row: i + 2,  // 1-indexed sheet row (accounting for header)
+            sku_name: String(skuName).trim()
+          });
+        }
+      }
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        success: true,
+        skus: pendingSkus,
+        total_pending: totalPending
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Update tagged SKU data back into the 'SKU Names' sheet.
+ * Writes Category (col B), Basic Type (col C), and Generic Keywords (col D)
+ * for the specified rows.
+ * 
+ * @param {Object} data - Request data containing:
+ *   - updates: Array of {row, category, basic_type, generic_keywords}
+ *     where row is the 1-indexed sheet row number
+ */
+function handleUpdateSkuTags(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('SKU Names');
+    
+    if (!sheet) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: false, error: "'SKU Names' sheet not found" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    const updates = data.updates || [];
+    let updatedCount = 0;
+    
+    for (const update of updates) {
+      const row = update.row;
+      const category = update.category || '';
+      const basicType = update.basic_type || '';
+      const gks = update.generic_keywords || '';
+      
+      if (!row || row < 2) continue;  // Skip invalid rows or header
+      
+      // Write Category (B), Basic Type (C), GKs (D) in one call per row
+      sheet.getRange(row, 2, 1, 3).setValues([[category, basicType, gks]]);
+      updatedCount++;
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        success: true,
+        message: updatedCount + ' SKUs updated in SKU Names sheet',
+        updated_count: updatedCount
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
