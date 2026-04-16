@@ -69,23 +69,12 @@ if 'needs_category_review' not in st.session_state:
 if 'accepted_new_bts' not in st.session_state:
     # Store accepted new basic types for export: {'bt_name': {'category': '...', 'generic_keywords': [...]}}
     st.session_state.accepted_new_bts = {}
-if 'sku_sheet_rows' not in st.session_state:
-    # Maps local index to sheet row number for writing back
-    st.session_state.sku_sheet_rows = []
-if 'total_pending' not in st.session_state:
-    st.session_state.total_pending = 0
-if 'skus_loaded' not in st.session_state:
-    st.session_state.skus_loaded = False
-if 'fetch_error' not in st.session_state:
-    st.session_state.fetch_error = None
+if 'tagging_complete' not in st.session_state:
+    st.session_state.tagging_complete = False
 if 'page_index' not in st.session_state:
     st.session_state.page_index = 0
 
 ROWS_PER_PAGE = 10
-MAX_SKUS_PER_BATCH = 200  # Max SKUs to fetch from sheet at oncete.page_index = 0
-
-ROWS_PER_PAGE = 10
-MAX_SKUS_PER_BATCH = 200  # Max SKUs to fetch from sheet at once
 
 # Load mapping files from Google Sheets
 import os
@@ -388,171 +377,6 @@ def get_existing_gk_for_basic_type(basic_type):
     return result
 
 
-def fetch_pending_skus(limit=MAX_SKUS_PER_BATCH):
-    """
-    Fetch ALL untagged SKUs from the 'SKU Names' Google Sheet.
-    Returns list of {row, sku_name} dicts and total_pending count.
-    Returns (None, error_msg) on API error vs ([], 0) when all tagged.
-    """
-    if not GOOGLE_SHEETS_WEBAPP_URL:
-        print("[WARN] Google Sheets Web App URL not configured. Cannot fetch SKUs.")
-        return None, "Google Sheets Web App URL not configured"
-    
-    try:
-        payload = {
-            'action': 'get_pending_skus',
-            'limit': limit,
-            'session_id': st.session_state.get('session_id', 'Unknown'),
-        }
-        response = requests.post(
-            GOOGLE_SHEETS_WEBAPP_URL,
-            json=payload,
-            headers={'Content-Type': 'application/json'},
-            timeout=30
-        )
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('success'):
-                skus = result.get('skus', [])
-                total = result.get('total_pending', 0)
-                print(f"[OK] fetch_pending_skus: got {len(skus)} SKUs, {total} total pending")
-                return skus, total
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                print(f"[ERROR] get_pending_skus failed: {error_msg}")
-                return None, error_msg
-        else:
-            error_msg = f"HTTP {response.status_code}: {response.text[:200]}"
-            print(f"[ERROR] get_pending_skus {error_msg}")
-            return None, error_msg
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[ERROR] fetch_pending_skus: {error_msg}")
-        return None, error_msg
-
-
-def save_current_page_to_sheet():
-    """
-    Save the CURRENT PAGE's tags (Category, Basic Type, GKs) back to the 'SKU Names' sheet.
-    Only saves SKUs on the current page that have at least a Category or Basic Type set.
-    Returns True if successful.
-    """
-    if not GOOGLE_SHEETS_WEBAPP_URL:
-        print("[WARN] Google Sheets Web App URL not configured.")
-        return False
-    
-    # Calculate current page slice
-    start = st.session_state.page_index * ROWS_PER_PAGE
-    end = min(start + ROWS_PER_PAGE, len(st.session_state.sku_data))
-    
-    updates = []
-    for i in range(start, end):
-        item = st.session_state.sku_data[i]
-    
-    # Calculate current page slice
-    start = st.session_state.page_index * ROWS_PER_PAGE
-    end = min(start + ROWS_PER_PAGE, len(st.session_state.sku_data))
-    
-    updates = []
-    for i in range(start, end):
-        item = st.session_state.sku_data[i]
-        if not item.get('category') and not item.get('basic_type'):
-            continue
-        row = st.session_state.sku_sheet_rows[i] if i < len(st.session_state.sku_sheet_rows) else None
-        if row is None:
-            continue
-        updates.append({
-            'row': row,
-            'category': item.get('category', ''),
-            'basic_type': item.get('basic_type', ''),
-            'generic_keywords': ', '.join(item.get('generic_keywords', []))
-        })
-    
-    if not updates:
-        print("[WARN] No tagged SKUs to save.")
-        return True
-    
-    try:
-        payload = {
-            'action': 'update_sku_tags',
-            'updates': updates,
-            'session_id': st.session_state.get('session_id', 'Unknown'),
-        }
-        response = requests.post(
-            GOOGLE_SHEETS_WEBAPP_URL,
-            json=payload,
-            headers={'Content-Type': 'application/json'},
-            timeout=30
-        )
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('success'):
-                print(f"[OK] Saved {result.get('updated_count', 0)} SKUs to sheet")
-                return True
-            else:
-                print(f"[ERROR] update_sku_tags failed: {result.get('error')}")
-                return False
-        else:
-            print(f"[ERROR] HTTP {response.status_code}: {response.text}")
-            return False
-    except requests.exceptions.RequestException as e:
-        print(f"[ERROR] save_current_page_to_sheet request failed: {e}")
-        return False
-
-
-def load_sku_page():
-    """Fetch ALL pending SKUs and initialize sku_data. Page 0 is shown first."""
-    skus, total_pending = fetch_pending_skus(MAX_SKUS_PER_BATCH)
-    
-    # skus=None means API error; skus=[] means genuinely no pending SKUs
-    if skus is None:
-        st.session_state.total_pending = -1  # -1 signals error
-        st.session_state.fetch_error = str(total_pending)  # total_pending holds error msg
-        st.session_state.sku_data = None
-        st.session_state.sku_sheet_rows = []
-        st.session_state.skus_loaded = True
-        return
-    
-    st.session_state.total_pending = total_pending
-    st.session_state.fetch_error = None
-    
-    if not skus:
-        st.session_state.sku_data = None
-        st.session_state.sku_sheet_rows = []
-        st.session_state.skus_loaded = True
-        return
-    
-    # Clear old per-SKU widget keys from session state
-    if st.session_state.sku_data:
-        for old_idx in range(len(st.session_state.sku_data)):
-            for prefix in ['cat_', 'bt_', 'tags_', 'bt_select_', 'bt_custom_', 'sku_',
-                           'accept_new_bt_', 'accept_bt_', 'new_gk_']:
-                key = f"{prefix}{old_idx}"
-                if key in st.session_state:
-                    del st.session_state[key]
-    
-    st.session_state.sku_data = []
-    st.session_state.sku_sheet_rows = []
-    st.session_state.suggested_new_bts = {}
-    st.session_state.needs_category_review = set()
-    st.session_state.page_index = 0
-    
-    for idx, sku_info in enumerate(skus):
-        st.session_state.sku_data.append({
-            'sku_name': sku_info['sku_name'],
-            'category': '',
-            'basic_type': '',
-            'generic_keywords': []
-        })
-        st.session_state.sku_sheet_rows.append(sku_info['row'])
-    
-    # Initialize widget keys for first page only (others initialized on page nav)
-    _init_page_widget_keys(0)
-    
-    st.session_state.skus_loaded = True
-    print(f"[OK] Loaded {len(skus)} pending SKUs (of {total_pending} remaining)")
-
-
 def _init_page_widget_keys(page_idx):
     """Initialize widget session state keys for the given page SKU slice."""
     start = page_idx * ROWS_PER_PAGE
@@ -787,27 +611,69 @@ if st.sidebar.button("🔄 Reset Usage Stats"):
 # Main content area
 st.header("")
 
-# Load SKUs from Google Sheet instead of CSV upload
-st.subheader("📋 SKU List from Google Sheets")
+# CSV Upload for SKU list
+st.subheader("📋 Upload SKU List")
 
-if not st.session_state.skus_loaded:
-    with st.spinner("Loading pending SKUs from Google Sheets..."):
-        load_sku_page()
+uploaded_file = st.file_uploader("Upload a CSV file with SKU names", type=["csv"])
+
+if uploaded_file is not None and (st.session_state.sku_data is None or st.session_state.get('uploaded_file_name') != uploaded_file.name):
+    try:
+        upload_df = pd.read_csv(uploaded_file)
+        # Find the SKU name column (first text column or column named 'SKU', 'sku_name', 'Name', etc.)
+        sku_col = None
+        for col in upload_df.columns:
+            if col.lower() in ['sku', 'sku_name', 'sku name', 'name', 'product', 'product_name', 'product name', 'item', 'item_name']:
+                sku_col = col
+                break
+        if sku_col is None:
+            # Use first column
+            sku_col = upload_df.columns[0]
+        
+        # Clear old per-SKU widget keys from session state
+        if st.session_state.sku_data:
+            for old_idx in range(len(st.session_state.sku_data)):
+                for prefix in ['cat_', 'bt_', 'tags_', 'bt_select_', 'bt_custom_', 'bt_adding_new_',
+                               'gk_adding_new_', 'sku_',
+                               'accept_new_bt_', 'accept_bt_', 'dismiss_new_bt_', 'dismiss_bt_', 'new_gk_']:
+                    key = f"{prefix}{old_idx}"
+                    if key in st.session_state:
+                        del st.session_state[key]
+        
+        st.session_state.sku_data = []
+        st.session_state.suggested_new_bts = {}
+        st.session_state.needs_category_review = set()
+        st.session_state.page_index = 0
+        st.session_state.tagging_complete = False
+        st.session_state.uploaded_file_name = uploaded_file.name
+        # Store original dataframe to preserve extra columns on export
+        st.session_state.uploaded_df = upload_df
+        st.session_state.uploaded_sku_col = sku_col
+        
+        for idx, row in upload_df.iterrows():
+            sku_name = str(row[sku_col]).strip()
+            if sku_name and sku_name.lower() != 'nan':
+                st.session_state.sku_data.append({
+                    'sku_name': sku_name,
+                    'category': '',
+                    'basic_type': '',
+                    'generic_keywords': []
+                })
+        
+        _init_page_widget_keys(0)
+        print(f"[OK] Loaded {len(st.session_state.sku_data)} SKUs from uploaded CSV")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error reading CSV: {str(e)}")
 
 # Show status
 if st.session_state.sku_data:
     total_skus = len(st.session_state.sku_data)
     total_pages = (total_skus + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE
     current_page = st.session_state.page_index + 1
-    st.success(f"✅ Loaded {total_skus} SKUs to tag | Page {current_page} of {total_pages}")
-elif st.session_state.skus_loaded and st.session_state.total_pending == -1:
-    st.error(f"❌ Failed to fetch SKUs from Google Sheets. Have you redeployed the Apps Script?\n\nError: {st.session_state.get('fetch_error', 'Unknown')}")
-    if st.button("🔄 Retry"):
-        st.session_state.skus_loaded = False
-        st.rerun()
-    st.stop()
-elif st.session_state.skus_loaded:
-    st.info("🎉 All SKUs have been tagged! No pending SKUs remaining.")
+    tagged_count = sum(1 for item in st.session_state.sku_data if item.get('basic_type') or item.get('category'))
+    st.success(f"✅ Loaded {total_skus} SKUs ({tagged_count} tagged) | Page {current_page} of {total_pages}")
+elif uploaded_file is None:
+    st.info("👆 Upload a CSV file containing SKU names to get started.")
     st.stop()
 
 if st.session_state.sku_data:
@@ -888,40 +754,62 @@ if st.session_state.sku_data:
                             
                             batch_results = json.loads(result_clean)['results']
                             
-                            # Update each SKU in the batch
+                            # Build a lookup from sku_name -> result for this batch
+                            results_by_sku = {}
                             for result_item in batch_results:
                                 sku_name = result_item['sku']
+                                results_by_sku[sku_name] = result_item
+                            
+                            # Update ALL SKUs in the batch (don't break on first match — handles duplicates)
+                            for idx in range(batch_start, batch_end):
+                                sku_name = st.session_state.sku_data[idx]['sku_name']
+                                if sku_name not in results_by_sku:
+                                    continue
+                                
+                                result_item = results_by_sku[sku_name]
                                 basic_type = result_item['basic_type']
                                 # Get category from result (now included in LLM response)
                                 category = result_item.get('category', bt_to_category.get(basic_type, ''))
                                 is_new_bt = result_item.get('is_new_bt', False)
                                 suggested_bt = result_item.get('suggested_bt', None)
                                 
-                                # Find the SKU in our data and update
-                                for idx in range(batch_start, batch_end):
-                                    if st.session_state.sku_data[idx]['sku_name'] == sku_name:
-                                        st.session_state.sku_data[idx]['basic_type'] = basic_type
-                                        st.session_state.sku_data[idx]['category'] = category
-                                        # Update sku_data (selectboxes use index from sku_data, not session state keys)
-                                        # No need to set bt_select_ or cat_ widget keys
-                                        
-                                        # Flag if this basic type is mapped to multiple categories
-                                        if basic_type in st.session_state.multi_cat_bts:
-                                            st.session_state.needs_category_review.add(idx)
-                                            print(f"[REVIEW] '{sku_name}' has multi-category BT '{basic_type}' -> categories: {st.session_state.multi_cat_bts[basic_type]}")
-                                        
-                                        # Handle suggested new basic type
-                                        if is_new_bt and suggested_bt:
-                                            st.session_state.suggested_new_bts[idx] = {
-                                                'suggested_bt': suggested_bt,
-                                                'category': category,
-                                                'sku_name': sku_name,
-                                                'closest_existing_bt': basic_type
-                                            }
-                                            print(f"[OK] Set '{sku_name}' -> BT: {basic_type}, Category: {category} (Suggested NEW: {suggested_bt})")
-                                        else:
-                                            print(f"[OK] Set '{sku_name}' -> BT: {basic_type}, Category: {category}")
-                                        break
+                                st.session_state.sku_data[idx]['basic_type'] = basic_type
+                                st.session_state.sku_data[idx]['category'] = category
+                                
+                                # Flag if this basic type is mapped to multiple categories
+                                if basic_type in st.session_state.multi_cat_bts:
+                                    st.session_state.needs_category_review.add(idx)
+                                    print(f"[REVIEW] '{sku_name}' has multi-category BT '{basic_type}' -> categories: {st.session_state.multi_cat_bts[basic_type]}")
+                                
+                                # Handle suggested new basic type
+                                if is_new_bt and suggested_bt:
+                                    # GPT may put the new name in basic_type — verify it's actually existing
+                                    all_bt_set = set(all_basic_types)
+                                    closest_existing = basic_type if basic_type in all_bt_set else ''
+                                    
+                                    # If GPT put the suggested name in basic_type (not existing),
+                                    # find the best existing BT from the same category
+                                    if not closest_existing and category:
+                                        cat_bts = [bt for bt, cat in bt_to_category.items() if cat == category]
+                                        if cat_bts:
+                                            # Simple best match: find existing BT most similar to SKU name
+                                            sku_lower = sku_name.lower()
+                                            scored = [(bt, sum(w in bt.lower() for w in sku_lower.split())) for bt in cat_bts]
+                                            scored.sort(key=lambda x: -x[1])
+                                            closest_existing = scored[0][0]
+                                    
+                                    # Set the closest existing BT in the dropdown
+                                    st.session_state.sku_data[idx]['basic_type'] = closest_existing
+                                    
+                                    st.session_state.suggested_new_bts[idx] = {
+                                        'suggested_bt': suggested_bt,
+                                        'category': category,
+                                        'sku_name': sku_name,
+                                        'closest_existing_bt': closest_existing
+                                    }
+                                    print(f"[OK] Set '{sku_name}' -> BT: {closest_existing or '(none)'}, Category: {category} (Suggested NEW: {suggested_bt})")
+                                else:
+                                    print(f"[OK] Set '{sku_name}' -> BT: {basic_type}, Category: {category}")
                             
                             processed = batch_end
                             
@@ -1167,8 +1055,37 @@ if st.session_state.sku_data:
         overflow: visible !important;
         text-overflow: unset !important;
     }
+    /* Green outline for new (custom) basic type selectbox */
+    div[data-testid="stColumn"]:has(.bt-is-new) div[data-baseweb="select"] > div {
+        border: 2px solid #28a745 !important;
+        box-shadow: 0 0 4px rgba(40, 167, 69, 0.4) !important;
+    }
+    /* Remove vertical gap when new-bt label is shown */
+    div[data-testid="stColumn"]:has(.bt-is-new) div[data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
+    
+    # Auto-focus the 2nd option in multiselect dropdowns so Enter skips "Select all"
+    components.html("""
+    <script>
+    const pdoc = window.parent.document;
+    function highlightSecondOption() {
+        pdoc.querySelectorAll('ul[role="listbox"]').forEach(function(ul) {
+            if (ul.dataset.fixed) return;
+            var items = ul.querySelectorAll('li');
+            if (items.length > 1) {
+                var second = items[1];
+                second.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+                ul.dataset.fixed = '1';
+            }
+        });
+    }
+    var obs = new MutationObserver(highlightSecondOption);
+    obs.observe(pdoc.body, { childList: true, subtree: true });
+    </script>
+    """, height=0)
 
     def _get_gk_options_for_bt(basic_type):
         """Get GK options filtered by the SKU's basic type, falling back to all GKs."""
@@ -1193,47 +1110,110 @@ if st.session_state.sku_data:
         # Fallback to all GKs
         return gk_options
 
-    @st.fragment
     def _render_keywords_fragment(idx, gk_options):
-        """Render keyword multiselect + manual entry in an isolated fragment."""
+        """Render keyword multiselect + manual entry."""
         current_keywords = st.session_state.sku_data[idx]['generic_keywords']
         
-        # Show ALL GKs so typing searches everything; also include current keywords
+        ADD_NEW_SENTINEL = "+ Add New"
+        
+        # Build options: all known GKs + any custom ones already on this SKU
         all_options = list(gk_options) if gk_options else []
         for kw in current_keywords:
             if kw not in all_options:
                 all_options.append(kw)
         
-        selected_keywords = st.multiselect(
-            "GK",
-            options=all_options,
-            default=current_keywords,
-            key=f"tags_{idx}",
-            label_visibility="collapsed",
-            placeholder="Select keywords..."
-        )
-        if selected_keywords != current_keywords:
-            st.session_state.sku_data[idx]['generic_keywords'] = selected_keywords
+        is_adding = st.session_state.get(f"gk_adding_new_{idx}", False)
         
-        # Manual entry for adding a new GK not in the dropdown
-        def _on_new_gk(idx=idx):
-            val = st.session_state.get(f"new_gk_{idx}", "").strip()
-            if val:
-                kw_cap = val[:1].upper() + val[1:]
-                current = st.session_state.sku_data[idx]['generic_keywords']
-                if kw_cap.lower() not in {k.lower() for k in current}:
-                    current.append(kw_cap)
-                    st.session_state.sku_data[idx]['generic_keywords'] = current
+        if not is_adding:
+            # Normal mode: multiselect with "+ Add New" as first option (always visible at top)
+            options_with_add = [ADD_NEW_SENTINEL] + all_options
+            
+            # Use on_change to detect "+ Add New" selection (can't modify widget key after render)
+            def _on_gk_change(idx=idx):
+                selected = st.session_state.get(f"tags_{idx}", [])
+                if ADD_NEW_SENTINEL in selected:
+                    # Strip sentinel, save real keywords, switch to adding mode
+                    real = [kw for kw in selected if kw != ADD_NEW_SENTINEL]
+                    st.session_state.sku_data[idx]['generic_keywords'] = real
+                    st.session_state[f"tags_{idx}"] = real
+                    st.session_state[f"gk_adding_new_{idx}"] = True
+                else:
+                    st.session_state.sku_data[idx]['generic_keywords'] = list(selected)
+            
+            st.multiselect(
+                "GK",
+                options=options_with_add,
+                default=current_keywords,
+                key=f"tags_{idx}",
+                label_visibility="collapsed",
+                placeholder="Select keywords...",
+                on_change=_on_gk_change
+            )
+        else:
+            # Adding mode: multiselect (no sentinel) + text input below
+            def _on_gk_select_change(idx=idx):
+                selected = st.session_state.get(f"tags_{idx}", [])
+                st.session_state.sku_data[idx]['generic_keywords'] = list(selected)
+            
+            st.multiselect(
+                "GK",
+                options=all_options,
+                default=current_keywords,
+                key=f"tags_{idx}",
+                label_visibility="collapsed",
+                placeholder="Select keywords...",
+                on_change=_on_gk_select_change
+            )
+            
+            def _on_new_gk(idx=idx):
+                val = st.session_state.get(f"new_gk_{idx}", "").strip()
+                if val:
+                    kw_cap = val.title()
+                    current = st.session_state.sku_data[idx]['generic_keywords']
+                    if kw_cap.lower() not in {k.lower() for k in current}:
+                        current.append(kw_cap)
+                        st.session_state.sku_data[idx]['generic_keywords'] = current
                     st.session_state[f"tags_{idx}"] = current
                 st.session_state[f"new_gk_{idx}"] = ""
+                st.session_state[f"gk_adding_new_{idx}"] = False
+                # Flag to refocus the multiselect after rerun
+                st.session_state[f"gk_refocus_{idx}"] = True
+            
+            st.text_input(
+                "Add GK",
+                key=f"new_gk_{idx}",
+                label_visibility="collapsed",
+                placeholder="Type new keyword and press Enter...",
+                on_change=_on_new_gk
+            )
+            # Auto-focus the new GK text input
+            components.html(
+                f"""
+                <script>
+                const inputs = window.parent.document.querySelectorAll('input[aria-label="Add GK"]');
+                if (inputs.length > 0) {{ inputs[inputs.length - 1].focus(); }}
+                </script>
+                """,
+                height=0
+            )
         
-        st.text_input(
-            "Add GK",
-            key=f"new_gk_{idx}",
-            label_visibility="collapsed",
-            placeholder="+ Add new keyword...",
-            on_change=_on_new_gk
-        )
+        # After adding a new GK, refocus the multiselect input for THIS SKU
+        if st.session_state.pop(f"gk_refocus_{idx}", False):
+            page_offset = idx - (st.session_state.page_index * ROWS_PER_PAGE)
+            components.html(
+                f"""
+                <script>
+                // Find all GK multiselects on the page and pick this SKU's by position
+                const allGK = window.parent.document.querySelectorAll('div[data-testid="stMultiSelect"]');
+                const pagePos = {page_offset};
+                if (allGK.length > pagePos && pagePos >= 0) {{
+                    const input = allGK[pagePos].querySelector('input');
+                    if (input) {{ input.focus(); input.click(); }}
+                }}
+                </script>
+                """,
+                height=0
+            )
 
     # Table header
     header_cols = st.columns([0.3, 3, 1.7, 1.7, 3.8])
@@ -1322,11 +1302,11 @@ if st.session_state.sku_data:
                 if filtered_bt and len(filtered_bt) > 0:
                     if isinstance(filtered_bt[0], list):
                         filtered_bt = filtered_bt[0]
-                    bt_suggestions = [''] + filtered_bt + ['➕ Type new...']
+                    bt_suggestions = [''] + filtered_bt + ['+ Add New']
                 else:
-                    bt_suggestions = bt_options + ['➕ Type new...']
+                    bt_suggestions = bt_options + ['+ Add New']
             else:
-                bt_suggestions = bt_options + ['➕ Type new...']
+                bt_suggestions = bt_options + ['+ Add New']
             
             # Check if there's a suggested new BT that was accepted (check BEFORE widget renders)
             accepted_suggestion_key = f"accept_new_bt_{idx}"
@@ -1349,33 +1329,53 @@ if st.session_state.sku_data:
                             'source_sku': suggestion['sku_name']
                         }
                     
-                    # Note: Logging to BT_Update_Log is deferred until CSV export to prevent UI freezing
-                    
                     # Remove from suggestions
                     del st.session_state.suggested_new_bts[idx]
                 
                 st.session_state[accepted_suggestion_key] = False
             
+            # Check if user dismissed a suggestion
+            dismissed_key = f"dismiss_new_bt_{idx}"
+            if dismissed_key in st.session_state and st.session_state[dismissed_key]:
+                if idx in st.session_state.suggested_new_bts:
+                    del st.session_state.suggested_new_bts[idx]
+                st.session_state[dismissed_key] = False
+            
             # Build options list - include current value if it's custom (not in standard list)
             current_bt = item['basic_type']
             
             dropdown_options = bt_suggestions.copy()
-            if current_bt and current_bt not in dropdown_options and current_bt != '➕ Type new...':
-                # Insert custom value before the "Type new..." option
-                dropdown_options = dropdown_options[:-1] + [current_bt] + ['➕ Type new...']
+            if current_bt and current_bt not in dropdown_options and current_bt != '+ Add New':
+                # Insert custom value before the "+ Add New" option
+                dropdown_options = dropdown_options[:-1] + [current_bt] + ['+ Add New']
             
             # Always sync session_state widget key from sku_data (source of truth)
+            # But skip when user is actively adding a new BT (to not override their selection)
             selectbox_key = f"bt_select_{idx}"
-            if current_bt and current_bt in dropdown_options:
-                st.session_state[selectbox_key] = current_bt
-            elif selectbox_key not in st.session_state:
-                st.session_state[selectbox_key] = ''
+            is_adding_new = st.session_state.get(f"bt_adding_new_{idx}", False)
+            if not is_adding_new:
+                if current_bt and current_bt in dropdown_options:
+                    st.session_state[selectbox_key] = current_bt
+                elif selectbox_key not in st.session_state:
+                    st.session_state[selectbox_key] = ''
+            
+            def _on_bt_select_change(idx=idx):
+                val = st.session_state.get(f"bt_select_{idx}", "")
+                if val == '+ Add New':
+                    st.session_state[f"bt_adding_new_{idx}"] = True
+                elif val:
+                    st.session_state.sku_data[idx]['basic_type'] = val
+                    st.session_state[f"bt_adding_new_{idx}"] = False
+                    st.session_state[f"bt_custom_{idx}"] = ""
+                else:
+                    st.session_state[f"bt_adding_new_{idx}"] = False
             
             selected_bt = st.selectbox(
                 "BT",
                 options=dropdown_options,
                 key=selectbox_key,
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                on_change=_on_bt_select_change
             )
             
             # Check if user selected "Type new..."
@@ -1383,12 +1383,14 @@ if st.session_state.sku_data:
             if custom_bt_key not in st.session_state:
                 st.session_state[custom_bt_key] = ""
             
-            if selected_bt == '➕ Type new...':
+            if selected_bt == '+ Add New':
                 # Show text input for custom basic type
                 def _on_custom_bt_change(idx=idx):
                     val = st.session_state.get(f"bt_custom_{idx}", "").strip()
                     if val:
                         st.session_state.sku_data[idx]['basic_type'] = val
+                        # Stop "adding new" mode so dropdown switches to the new value
+                        st.session_state[f"bt_adding_new_{idx}"] = False
                         if val not in st.session_state.accepted_new_bts:
                             current_cat = st.session_state.sku_data[idx].get('category', '') or 'Uncategorized'
                             st.session_state.accepted_new_bts[val] = {
@@ -1397,34 +1399,55 @@ if st.session_state.sku_data:
                                 'source_sku': st.session_state.sku_data[idx]['sku_name']
                             }
 
-                custom_bt = st.text_input(
+                st.text_input(
                     "New BT:",
                     key=custom_bt_key,
                     label_visibility="collapsed",
                     placeholder="Type new basic type...",
                     on_change=_on_custom_bt_change
                 )
-                # Also sync on current render if value already present
-                if custom_bt and custom_bt.strip():
-                    st.session_state.sku_data[idx]['basic_type'] = custom_bt.strip()
+                # Auto-focus the new BT text input
+                components.html(
+                    f"""
+                    <script>
+                    const inputs = window.parent.document.querySelectorAll('input[aria-label="New BT:"]');
+                    if (inputs.length > 0) {{ inputs[inputs.length > {idx + 1} ? {idx} : inputs.length - 1].focus(); }}
+                    </script>
+                    """,
+                    height=0
+                )
             else:
                 # Sync selection back to sku_data
                 if selected_bt and selected_bt != item['basic_type']:
                     st.session_state.sku_data[idx]['basic_type'] = selected_bt
+                
+                # Show green highlight if this is a new (custom) basic type
+                all_existing_bts = set()
+                if st.session_state.bt_df is not None:
+                    all_existing_bts = set(st.session_state.bt_df.iloc[:, 0].tolist())
+                if selected_bt and selected_bt not in all_existing_bts:
+                    st.markdown('<div class="bt-is-new" style="display:none;"></div>', unsafe_allow_html=True)
+                    st.markdown(
+                        '<small style="color: #28a745;">New Basic Type</small>',
+                        unsafe_allow_html=True
+                    )
             
             # Show LLM suggested new basic type if available
             if idx in st.session_state.suggested_new_bts:
                 suggestion = st.session_state.suggested_new_bts[idx]
                 suggested_bt = suggestion['suggested_bt']
                 
-                # Show suggestion text and small "Use" button inline
-                col_text, col_btn = st.columns([2, 1])
-                with col_text:
-                    st.markdown(f"<small style='color: #1f77b4;'>💡 <b>{suggested_bt}</b></small>", unsafe_allow_html=True)
-                with col_btn:
+                st.markdown(f"<small style='color: #1f77b4;'>💡 Suggest: <b>{suggested_bt}</b></small>", unsafe_allow_html=True)
+                # Accept / Dismiss buttons inline
+                col_accept, col_dismiss = st.columns(2)
+                with col_accept:
                     def accept_suggestion(idx=idx):
                         st.session_state[f"accept_new_bt_{idx}"] = True
-                    st.button("✓", key=f"accept_bt_{idx}", on_click=accept_suggestion, help="Use this suggestion")
+                    st.button("✓ Use", key=f"accept_bt_{idx}", on_click=accept_suggestion, help=f"Use '{suggested_bt}' as basic type")
+                with col_dismiss:
+                    def dismiss_suggestion(idx=idx):
+                        st.session_state[f"dismiss_new_bt_{idx}"] = True
+                    st.button("✗ Keep", key=f"dismiss_bt_{idx}", on_click=dismiss_suggestion, help="Keep the current basic type")
         
         with cols[4]:
             # Render keywords in a fragment to prevent full-page reruns on rapid edits
@@ -1434,7 +1457,7 @@ if st.session_state.sku_data:
         st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
     
     # Save & Navigate
-    st.header("💾 Save & Continue")
+    st.header("� Export & Navigate")
     
     # Calculate pagination info
     total_skus = len(st.session_state.sku_data)
@@ -1442,16 +1465,15 @@ if st.session_state.sku_data:
     current_page = st.session_state.page_index
     page_start = current_page * ROWS_PER_PAGE
     page_end_idx = min(page_start + ROWS_PER_PAGE, total_skus)
-    is_last_page = (current_page + 1) >= total_pages
     
-    # Detect all new basic types (both manually entered and from suggestions) — current page only
+    # Detect all new basic types (both manually entered and from suggestions) — ALL SKUs
     def detect_new_basic_types():
         all_existing_bts = set()
         if st.session_state.bt_df is not None:
             all_existing_bts = set(st.session_state.bt_df.iloc[:, 0].tolist())
         
         new_bts = {}
-        for item in st.session_state.sku_data[page_start:page_end_idx]:
+        for item in st.session_state.sku_data:
             basic_type = item.get('basic_type', '')
             category = item.get('category', '')
             if not basic_type:
@@ -1469,10 +1491,10 @@ if st.session_state.sku_data:
             new_bts[bt]['generic_keywords'] = list(new_bts[bt]['generic_keywords'])
         return new_bts
     
-    # Detect manually added generic keywords — current page only
+    # Detect manually added generic keywords — ALL SKUs
     def detect_new_gk_mappings():
         new_mappings = {}
-        for item in st.session_state.sku_data[page_start:page_end_idx]:
+        for item in st.session_state.sku_data:
             basic_type = item.get('basic_type', '')
             current_keywords = item.get('generic_keywords', [])
             if not basic_type or not current_keywords:
@@ -1485,28 +1507,23 @@ if st.session_state.sku_data:
                 new_mappings[basic_type].update(new_keywords)
         return {bt: list(keywords) for bt, keywords in new_mappings.items()}
     
-    # Show detected new mappings before save
+    # Show detected new mappings
     new_gk_mappings = detect_new_gk_mappings()
-    
-    # Detect all new basic types (manually typed or from AI suggestions)
     new_basic_types = detect_new_basic_types()
     
     if new_gk_mappings:
         with st.expander("🆕 New Generic Keywords Detected", expanded=True):
-            st.info("The following generic keywords were manually added and will be synced to Google Sheets BT_GK_mappings when you save:")
+            st.info("The following generic keywords were manually added and will be synced to Google Sheets on export:")
             for bt, keywords in new_gk_mappings.items():
                 st.markdown(f"**{bt}:** {', '.join(keywords)}")
     
-    # Show all new basic types that will be added
     if new_basic_types:
-        with st.expander("🆕 New Basic Types to Add", expanded=True):
-            st.info("The following new basic types will be added to Google Sheets BT_CT_mappings and BT_GK_mappings when you save:")
+        with st.expander("🆕 New Basic Types Detected", expanded=True):
+            st.info("The following new basic types will be added to Google Sheets on export:")
             for bt_name, bt_info in new_basic_types.items():
                 st.markdown(f"**{bt_name}** → Category: *{bt_info['category']}*")
                 if bt_info['generic_keywords']:
                     st.markdown(f"  - Generic Keywords: {', '.join(bt_info['generic_keywords'])}")
-    
-    remaining_after = max(0, st.session_state.total_pending - len(st.session_state.sku_data))
     
     # Page navigation info
     st.markdown(f"**Page {current_page + 1} of {total_pages}** — showing SKUs {page_start + 1}–{page_end_idx} of {total_skus}")
@@ -1519,73 +1536,72 @@ if st.session_state.sku_data:
             st.rerun()
     
     with nav_col2:
-        if st.button("💾 Save Page to Sheet", use_container_width=True, type="primary"):
-            # 1. Add new basic types to mappings
-            if new_basic_types:
-                with st.spinner("Adding new basic types to Google Sheets..."):
-                    for bt_name, bt_info in new_basic_types.items():
-                        success = add_new_bt_to_mappings(
-                            bt_name, 
-                            bt_info['category'], 
-                            bt_info.get('generic_keywords', [])
-                        )
+        # Build export CSV data
+        export_rows = []
+        for item in st.session_state.sku_data:
+            export_rows.append({
+                'SKU Name': item['sku_name'],
+                'Category': item.get('category', ''),
+                'Basic Type': item.get('basic_type', ''),
+                'Generic Keywords': ', '.join(item.get('generic_keywords', []))
+            })
+        export_df = pd.DataFrame(export_rows)
+        csv_data = export_df.to_csv(index=False).encode('utf-8')
+        
+        # Check if export was triggered on previous rerun
+        if st.session_state.get('_export_ready', False):
+            st.download_button(
+                label="⬇️ Download CSV",
+                data=csv_data,
+                file_name=f"tagged_skus_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                type="primary"
+            )
+            st.session_state._export_ready = False
+        else:
+            if st.button("📥 Export Tagged CSV", use_container_width=True, type="primary"):
+                if new_gk_mappings or new_basic_types:
+                    progress = st.progress(0, text="Syncing new mappings to Google Sheets...")
+                    total_steps = len(new_basic_types) + (1 if new_gk_mappings else 0) + 1  # +1 for CSV prep
+                    step = 0
+                    
+                    # Add new basic types
+                    if new_basic_types:
+                        for bt_name, bt_info in new_basic_types.items():
+                            success = add_new_bt_to_mappings(
+                                bt_name,
+                                bt_info['category'],
+                                bt_info.get('generic_keywords', [])
+                            )
+                            if success:
+                                log_new_bt_update(bt_name, bt_info['category'], bt_info.get('source_sku', 'Unknown'), 'added')
+                                print(f"[OK] Added new BT '{bt_name}' to Google Sheets")
+                            else:
+                                print(f"[WARN] Could not add new BT '{bt_name}' to Google Sheets")
+                            step += 1
+                            progress.progress(step / total_steps, text=f"Added BT: {bt_name}")
+                        st.session_state.accepted_new_bts = {}
+                    
+                    # Sync new GK mappings
+                    existing_bt_gk_mappings = {bt: kws for bt, kws in new_gk_mappings.items() if bt not in new_basic_types}
+                    if existing_bt_gk_mappings:
+                        progress.progress(step / total_steps, text="Syncing new generic keywords...")
+                        success = update_bt_gk_mappings(existing_bt_gk_mappings)
                         if success:
-                            log_new_bt_update(bt_name, bt_info['category'], bt_info.get('source_sku', 'Unknown'), 'added')
-                    st.session_state.accepted_new_bts = {}
-            
-            # 2. Sync new GK mappings
-            existing_bt_gk_mappings = {bt: kws for bt, kws in new_gk_mappings.items() if bt not in new_basic_types}
-            if existing_bt_gk_mappings:
-                with st.spinner("Syncing new generic keywords to Google Sheets..."):
-                    update_bt_gk_mappings(existing_bt_gk_mappings)
-            
-            # 3. Save current page tags to SKU Names sheet
-            with st.spinner("Saving tags to SKU Names sheet..."):
-                saved = save_current_page_to_sheet()
-            
-            if saved:
-                st.success(f"✅ Page {current_page + 1} saved!")
-            else:
-                st.error("❌ Failed to save tags. Check console for details.")
+                            print(f"[OK] Synced {sum(len(v) for v in existing_bt_gk_mappings.values())} new GKs to Google Sheets")
+                        else:
+                            print("[WARN] Could not sync new GKs to Google Sheets")
+                        step += 1
+                    
+                    progress.progress(1.0, text="Preparing CSV...")
+                    progress.empty()
+                
+                st.session_state._export_ready = True
+                st.rerun()
     
     with nav_col3:
-        if is_last_page:
-            next_label = "💾 Save & Load New Batch ➡️"
-        else:
-            next_label = "Save & Next Page ➡️"
-        
-        if st.button(next_label, use_container_width=True):
-            # Save current page first
-            if new_basic_types:
-                with st.spinner("Adding new basic types..."):
-                    for bt_name, bt_info in new_basic_types.items():
-                        success = add_new_bt_to_mappings(
-                            bt_name, bt_info['category'], bt_info.get('generic_keywords', [])
-                        )
-                        if success:
-                            log_new_bt_update(bt_name, bt_info['category'], bt_info.get('source_sku', 'Unknown'), 'added')
-                    st.session_state.accepted_new_bts = {}
-            
-            existing_bt_gk_mappings = {bt: kws for bt, kws in new_gk_mappings.items() if bt not in new_basic_types}
-            if existing_bt_gk_mappings:
-                with st.spinner("Syncing new generic keywords..."):
-                    update_bt_gk_mappings(existing_bt_gk_mappings)
-            
-            with st.spinner("Saving tags to SKU Names sheet..."):
-                saved = save_current_page_to_sheet()
-            
-            if saved:
-                if is_last_page:
-                    # All pages done — fetch new batch from sheet
-                    st.success("✅ All pages saved! Loading next batch...")
-                    st.session_state.skus_loaded = False
-                    st.rerun()
-                else:
-                    # Advance to next page
-                    st.session_state.page_index += 1
-                    st.rerun()
-            else:
-                st.error("❌ Failed to save tags.")
-    
-    if remaining_after > 0:
-        st.info(f"📋 {remaining_after} additional SKUs in the sheet beyond this batch.")
+        is_last_page = (current_page + 1) >= total_pages
+        if st.button("Next Page ➡️", use_container_width=True, disabled=is_last_page):
+            st.session_state.page_index += 1
+            st.rerun()

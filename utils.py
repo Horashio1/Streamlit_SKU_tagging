@@ -362,6 +362,7 @@ def batch_basictype_category_prompt(sku_list, basic_type_list, bt_to_category_ma
                - Set "is_new_bt" to true and provide a "suggested_bt" value.
                - The suggested basic type should follow naming conventions (Title Case, descriptive, concise).
                - Still select the most appropriate category from the available categories for the suggested basic type.
+               - IMPORTANT: "basic_type" MUST still be set to the closest/best-fitting EXISTING basic type from the list (never the suggested new one). This serves as a fallback.
             7. If an existing basic type matches well, set "is_new_bt" to false and "suggested_bt" to null.
             8. IMPORTANT: Respond **only** with valid JSON — no Markdown, no code fences, and no extra text.
             
