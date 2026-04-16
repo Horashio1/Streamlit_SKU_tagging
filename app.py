@@ -1033,6 +1033,11 @@ if st.session_state.sku_data:
         -webkit-text-fill-color: #000000 !important;
         opacity: 1 !important;
     }
+    /* Hide "Select all" and "Select X matches" options in multiselect dropdowns */
+    div[data-testid="stMultiSelect"] li[role="option"]:has(span[data-testid="multiselect-option-selectAll"]),
+    div[data-testid="stMultiSelect"] li[role="option"]:has(span[data-testid="multiselect-option-selectVisible"]) {
+        display: none !important;
+    }
     /* Highlight category selectbox for multi-category basic types */
     div[data-testid="stColumn"]:has(.cat-needs-review) div[data-baseweb="select"] > div {
         border: 2px solid #ff4b4b !important;
@@ -1067,22 +1072,49 @@ if st.session_state.sku_data:
     </style>
     """, unsafe_allow_html=True)
     
-    # Auto-focus the 2nd option in multiselect dropdowns so Enter skips "Select all"
+    # Hide "Select all" / "Select X matches" in multiselect dropdowns and auto-focus first real option
     components.html("""
     <script>
     const pdoc = window.parent.document;
-    function highlightSecondOption() {
+    const HIDE_RE = /select all|\\d+ match|select \\d+/i;
+    function fixMultiselect() {
+        // Target listbox items
+        pdoc.querySelectorAll('li[role="option"]').forEach(function(li) {
+            var text = (li.textContent || '').trim();
+            if (HIDE_RE.test(text)) {
+                li.style.display = 'none';
+            }
+        });
+        // Target any element with select-all related data-testid
+        pdoc.querySelectorAll('[data-testid*="select"]').forEach(function(el) {
+            var tid = el.getAttribute('data-testid') || '';
+            if (/selectAll|selectVisible|select-all|select-visible|selectMatches/i.test(tid)) {
+                var li = el.closest('li') || el;
+                li.style.display = 'none';
+            }
+        });
+        // Target header sections above listbox (Streamlit 1.50+)
+        pdoc.querySelectorAll('div[data-baseweb="popover"] div, div[data-baseweb="menu"] div').forEach(function(div) {
+            var text = (div.textContent || '').trim();
+            // Only target small divs that just contain the "Select all" / "X matches" text
+            if (div.children.length <= 2 && HIDE_RE.test(text) && text.length < 30) {
+                div.style.display = 'none';
+            }
+        });
+        // Focus first visible option in newly opened lists
         pdoc.querySelectorAll('ul[role="listbox"]').forEach(function(ul) {
-            if (ul.dataset.fixed) return;
-            var items = ul.querySelectorAll('li');
-            if (items.length > 1) {
-                var second = items[1];
-                second.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
-                ul.dataset.fixed = '1';
+            if (ul.dataset.hlfixed) return;
+            var items = ul.querySelectorAll('li[role="option"]');
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].style.display !== 'none' && items[i].offsetParent !== null) {
+                    items[i].dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+                    ul.dataset.hlfixed = '1';
+                    break;
+                }
             }
         });
     }
-    var obs = new MutationObserver(highlightSecondOption);
+    var obs = new MutationObserver(fixMultiselect);
     obs.observe(pdoc.body, { childList: true, subtree: true });
     </script>
     """, height=0)
