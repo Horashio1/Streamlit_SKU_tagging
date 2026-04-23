@@ -1295,19 +1295,28 @@ if st.session_state.sku_data:
                     unsafe_allow_html=True
                 )
             
-            # Always sync session_state widget key from sku_data (source of truth).
-            # This ensures the selectbox reflects auto-tagging results and page navigation.
-            cat_value = item.get('category', '')
-            if cat_value and cat_value in category_options:
-                st.session_state[f"cat_{idx}"] = cat_value
-            elif f"cat_{idx}" not in st.session_state:
-                st.session_state[f"cat_{idx}"] = ''
+            # Only initialize session_state widget key when it doesn't exist (first render).
+            # Don't overwrite user selections - use on_change callback to sync to sku_data.
+            cat_key = f"cat_{idx}"
+            if cat_key not in st.session_state:
+                cat_value = item.get('category', '')
+                if cat_value and cat_value in category_options:
+                    st.session_state[cat_key] = cat_value
+                else:
+                    st.session_state[cat_key] = ''
+            
+            def _on_cat_select_change(idx=idx):
+                """Sync category selectbox value back to sku_data immediately on change."""
+                val = st.session_state.get(f"cat_{idx}", "")
+                if val != st.session_state.sku_data[idx].get('category', ''):
+                    st.session_state.sku_data[idx]['category'] = val
             
             selected_category = st.selectbox(
                 "Cat",
                 options=category_options,
-                key=f"cat_{idx}",
-                label_visibility="collapsed"
+                key=cat_key,
+                label_visibility="collapsed",
+                on_change=_on_cat_select_change
             )
             
             if needs_review:
@@ -1316,10 +1325,6 @@ if st.session_state.sku_data:
                     f'<small style="color: #ff4b4b;">⚠️ {current_bt_for_review} in: {possible_cats_str}</small>',
                     unsafe_allow_html=True
                 )
-            
-            # Sync selectbox value back to sku_data
-            if selected_category != item['category']:
-                st.session_state.sku_data[idx]['category'] = selected_category
         
         with cols[3]:
             # Filter basic types based on selected category
