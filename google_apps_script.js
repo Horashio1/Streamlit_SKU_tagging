@@ -34,6 +34,10 @@
 const SPREADSHEET_ID = '1-1DejLMWTf7YbUNKVa84fIiguL1XXb14wKJ-w28yOh4';
 const SHEET_NAME = 'GPT Token Costs';
 
+// SKU Tagging Sheet (separate spreadsheet for SKU input/output)
+const SKU_TAGGING_SPREADSHEET_ID = '18ahW-0qCZToVqjyuUN_6UQGuKkZmuJBP4-W5QgRcwdA';
+const SKU_TAGGING_SHEET_NAME = 'Main';
+
 /**
  * Initialize the sheet with headers if they don't exist
  */
@@ -137,6 +141,16 @@ function doPost(e) {
     // Update SKU tags back into SKU Names sheet
     if (data.action === 'update_sku_tags') {
       return handleUpdateSkuTags(data);
+    }
+    
+    // Get SKUs from Main sheet (new external spreadsheet) with pagination
+    if (data.action === 'get_main_skus') {
+      return handleGetMainSKUs(data);
+    }
+    
+    // Update SKU tags back into Main sheet (new external spreadsheet)
+    if (data.action === 'update_main_sku_tags') {
+      return handleUpdateMainSKUTags(data);
     }
     
     // Otherwise, handle as GPT cost logging
@@ -851,4 +865,165 @@ function addSummaryFormulas() {
   summarySheet.setColumnWidth(2, 150);
   
   Logger.log('Summary sheet created!');
+}
+
+// =============================================================================
+// SKU Tagging Sheet (External Spreadsheet) Handlers
+// =============================================================================
+
+/**
+ * Get SKUs from the Main sheet with pagination.
+ * Sheet columns: A=SKU Name, B=Category, C=Basic Type, D=Generic Keywords
+ * 
+ * @param {Object} data - Request data containing:
+ *   - offset: 0-based row offset (default 0)
+ *   - limit: max number of rows to return (default 100)
+ * @returns {Object} JSON with {skus: [{row, sku_name, category, basic_type, generic_keywords}, ...], total_rows}
+ */
+function handleGetMainSKUs(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SKU_TAGGING_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SKU_TAGGING_SHEET_NAME);
+    
+    if (!sheet) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ 
+          success: false, 
+          error: "'" + SKU_TAGGING_SHEET_NAME + "' sheet not found in spreadsheet " + SKU_TAGGING_SPREADSHEET_ID 
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    const offset = data.offset || 0;
+    const limit = data.limit || 100;
+    const lastRow = sheet.getLastRow();
+    
+    // Total data rows (excluding header)
+    const totalRows = lastRow > 1 ? lastRow - 1 : 0;
+    
+    if (totalRows === 0) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, skus: [], total_rows: 0 }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Calculate start row (1-indexed, skip header row 1)
+    const startRow = 2 + offset;
+    
+    // Don't read past the last row
+    if (startRow > lastRow) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, skus: [], total_rows: totalRows }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Calculate how many rows to read
+    const rowsToRead = Math.min(limit, lastRow - startRow + 1);
+    
+    if (rowsToRead <= 0) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, skus: [], total_rows: totalRows }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Read data (cols A-D)
+    const allData = sheet.getRange(startRow, 1, rowsToRead, 4).getValues();
+    
+    const skus = [];
+    for (let i = 0; i < allData.length; i++) {
+      const skuName = allData[i][0];
+      const category = allData[i][1] || '';
+      const basicType = allData[i][2] || '';
+      const genericKeywords = allData[i][3] || '';
+      
+      // Skip rows with no SKU name
+      if (!skuName || String(skuName).trim() === '') continue;
+      
+      skus.push({
+        row: startRow + i,  // 1-indexed sheet row
+        sku_name: String(skuName).trim(),
+        category: String(category).trim(),
+        basic_type: String(basicType).trim(),
+        generic_keywords: String(genericKeywords).trim()
+      });
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        success: true,
+        skus: skus,
+        total_rows: totalRows,
+        offset: offset,
+        limit: limit
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Update SKU tags in the Main sheet.
+ * Writes Category (col B), Basic Type (col C), and Generic Keywords (col D).
+ * 
+ * @param {Object} data - Request data containing:
+ *   - updates: Array of {row, category, basic_type, generic_keywords}
+ *     where row is the 1-indexed sheet row number
+ * @returns {Object} JSON with {success, message, updated_count}
+ */
+function handleUpdateMainSKUTags(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SKU_TAGGING_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SKU_TAGGING_SHEET_NAME);
+    
+    if (!sheet) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ 
+          success: false, 
+          error: "'" + SKU_TAGGING_SHEET_NAME + "' sheet not found" 
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    const updates = data.updates || [];
+    let updatedCount = 0;
+    const errors = [];
+    
+    for (const update of updates) {
+      const row = update.row;
+      const category = update.category || '';
+      const basicType = update.basic_type || '';
+      const gks = update.generic_keywords || '';
+      
+      if (!row || row < 2) {
+        errors.push('Invalid row: ' + row);
+        continue;
+      }
+      
+      try {
+        // Write Category (B), Basic Type (C), GKs (D) in one call per row
+        sheet.getRange(row, 2, 1, 3).setValues([[category, basicType, gks]]);
+        updatedCount++;
+      } catch (rowError) {
+        errors.push('Row ' + row + ': ' + rowError.toString());
+      }
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        success: true,
+        message: updatedCount + ' SKUs updated in Main sheet',
+        updated_count: updatedCount,
+        errors: errors.length > 0 ? errors : undefined
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }

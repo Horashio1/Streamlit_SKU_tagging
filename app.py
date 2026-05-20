@@ -19,7 +19,7 @@ st.set_page_config(page_title="SKU Tagging System", layout="wide", initial_sideb
 
 # Title
 st.title("🏷️ SKU Tagging System")
-st.markdown("Upload SKUs and automatically tag them with Categories, Basic Types, and Generic Keywords")
+st.markdown("Load SKUs from Google Sheets and automatically tag them with Categories, Basic Types, and Generic Keywords")
 
 # Azure OpenAI configuration (loaded from environment variables)
 open_api_key = os.getenv('AZURE_OPENAI_API_KEY')
@@ -77,8 +77,17 @@ if 'tagging_complete' not in st.session_state:
     st.session_state.tagging_complete = False
 if 'page_index' not in st.session_state:
     st.session_state.page_index = 0
+if 'total_sheet_rows' not in st.session_state:
+    # Total number of data rows in the Google Sheet (for pagination display)
+    st.session_state.total_sheet_rows = 0
+if 'sheet_skus_loaded' not in st.session_state:
+    # Flag to track if SKUs have been loaded from Google Sheet
+    st.session_state.sheet_skus_loaded = False
 
 ROWS_PER_PAGE = 10
+
+# Number of SKUs to load from Google Sheet at startup
+SKU_LOAD_LIMIT = 100
 
 # Load mapping files from Google Sheets
 import os
@@ -381,6 +390,193 @@ def get_existing_gk_for_basic_type(basic_type):
     return result
 
 
+def load_skus_from_main_sheet(offset=0, limit=100):
+    """
+    Load SKUs from the Main sheet in the SKU Tagging spreadsheet via Google Apps Script.
+    
+    Args:
+        offset: 0-based row offset (default 0)
+        limit: Max number of rows to return (default 100)
+    
+    Returns:
+        dict: {success, skus: [{row, sku_name, category, basic_type, generic_keywords}, ...], total_rows}
+    """
+    if not GOOGLE_SHEETS_WEBAPP_URL:
+        print("[WARN] Google Sheets Web App URL not configured. Cannot load SKUs from Main sheet.")
+        return {'success': False, 'error': 'GOOGLE_SHEETS_WEBAPP_URL not configured', 'skus': [], 'total_rows': 0}
+    
+    try:
+        payload = {
+            'action': 'get_main_skus',
+            'offset': offset,
+            'limit': limit,
+        }
+        
+        response = requests.post(
+            GOOGLE_SHEETS_WEBAPP_URL,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                print(f"[OK] Loaded {len(result.get('skus', []))} SKUs from Main sheet (offset={offset}, total={result.get('total_rows', 0)})")
+                return result
+            else:
+                print(f"[ERROR] Failed to load SKUs from Main sheet: {result.get('error')}")
+                return {'success': False, 'error': result.get('error'), 'skus': [], 'total_rows': 0}
+        else:
+            print(f"[ERROR] Failed to load SKUs from Main sheet: HTTP {response.status_code}")
+            return {'success': False, 'error': f'HTTP {response.status_code}', 'skus': [], 'total_rows': 0}
+            
+    except Exception as e:
+        print(f"[ERROR] Error loading SKUs from Main sheet: {str(e)}")
+        return {'success': False, 'error': str(e), 'skus': [], 'total_rows': 0}
+
+
+def update_skus_in_main_sheet(updates):
+    """
+    Update SKU tags in the Main sheet via Google Apps Script.
+    
+    Args:
+        updates: List of dicts with {row, category, basic_type, generic_keywords}
+                where row is the 1-indexed sheet row number
+    
+    Returns:
+        dict: {success, message, updated_count}
+    """
+    if not GOOGLE_SHEETS_WEBAPP_URL:
+        print("[WARN] Google Sheets Web App URL not configured. Cannot update SKUs in Main sheet.")
+        return {'success': False, 'error': 'GOOGLE_SHEETS_WEBAPP_URL not configured'}
+    
+    if not updates:
+        print("[INFO] No SKU updates to send.")
+        return {'success': True, 'message': 'No updates to send', 'updated_count': 0}
+    
+    try:
+        payload = {
+            'action': 'update_main_sku_tags',
+            'updates': updates,
+            'session_id': st.session_state.get('session_id', 'Unknown'),
+        }
+        
+        response = requests.post(
+            GOOGLE_SHEETS_WEBAPP_URL,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=60  # Longer timeout for batch updates
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                print(f"[OK] Updated {result.get('updated_count', 0)} SKUs in Main sheet")
+                return result
+            else:
+                print(f"[ERROR] Failed to update SKUs in Main sheet: {result.get('error')}")
+                return {'success': False, 'error': result.get('error')}
+        else:
+            print(f"[ERROR] Failed to update SKUs in Main sheet: HTTP {response.status_code}")
+            return {'success': False, 'error': f'HTTP {response.status_code}'}
+            
+    except Exception as e:
+        print(f"[ERROR] Error updating SKUs in Main sheet: {str(e)}")
+        return {'success': False, 'error': str(e)}
+
+
+def sync_current_page_to_sheet():
+    """
+    Sync the current page's SKU tags to the Google Sheet.
+    Also syncs any new BT/GK mappings.
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if not st.session_state.sku_data:
+        return True
+    
+    # Build updates list from sku_data (only items that have a sheet row number)
+    updates = []
+    for item in st.session_state.sku_data:
+        if 'sheet_row' not in item:
+            continue
+        
+        # Format generic keywords as comma-separated string
+        gks = item.get('generic_keywords', [])
+        gks_str = ', '.join(gks) if isinstance(gks, list) else str(gks)
+        
+        updates.append({
+            'row': item['sheet_row'],
+            'category': item.get('category', ''),
+            'basic_type': item.get('basic_type', ''),
+            'generic_keywords': gks_str
+        })
+    
+    if not updates:
+        return True
+    
+    # First, sync any new BT/GK mappings
+    all_existing_bts = set()
+    if st.session_state.bt_df is not None:
+        all_existing_bts = set(st.session_state.bt_df.iloc[:, 0].tolist())
+    
+    # Detect new basic types
+    new_bts = {}
+    for item in st.session_state.sku_data:
+        basic_type = item.get('basic_type', '')
+        category = item.get('category', '')
+        if not basic_type:
+            continue
+        if basic_type not in all_existing_bts:
+            if basic_type not in new_bts:
+                new_bts[basic_type] = {
+                    'category': category if category else 'Uncategorized',
+                    'generic_keywords': set(),
+                    'source_sku': item['sku_name']
+                }
+            if item.get('generic_keywords'):
+                new_bts[basic_type]['generic_keywords'].update(item['generic_keywords'])
+    
+    # Detect new GK mappings
+    new_gk_mappings = {}
+    for item in st.session_state.sku_data:
+        basic_type = item.get('basic_type', '')
+        current_keywords = item.get('generic_keywords', [])
+        if not basic_type or not current_keywords:
+            continue
+        existing_keywords = get_existing_gk_for_basic_type(basic_type)
+        new_keywords = [kw for kw in current_keywords if kw not in existing_keywords]
+        if new_keywords:
+            if basic_type not in new_gk_mappings:
+                new_gk_mappings[basic_type] = set()
+            new_gk_mappings[basic_type].update(new_keywords)
+    
+    # Add new basic types to mappings
+    for bt_name, bt_info in new_bts.items():
+        gks = list(bt_info['generic_keywords'])
+        success = add_new_bt_to_mappings(bt_name, bt_info['category'], gks)
+        if success:
+            log_new_bt_update(bt_name, bt_info['category'], bt_info.get('source_sku', 'Unknown'), 'added')
+            print(f"[OK] Added new BT '{bt_name}' to Google Sheets")
+        else:
+            print(f"[WARN] Could not add new BT '{bt_name}' to Google Sheets")
+    
+    # Sync new GK mappings (for existing BTs only)
+    existing_bt_gk_mappings = {bt: list(kws) for bt, kws in new_gk_mappings.items() if bt not in new_bts}
+    if existing_bt_gk_mappings:
+        success = update_bt_gk_mappings(existing_bt_gk_mappings)
+        if success:
+            print(f"[OK] Synced {sum(len(v) for v in existing_bt_gk_mappings.values())} new GKs to Google Sheets")
+        else:
+            print("[WARN] Could not sync new GKs to Google Sheets")
+    
+    # Now update the SKU tags in the Main sheet
+    result = update_skus_in_main_sheet(updates)
+    return result.get('success', False)
+
+
 def _init_page_widget_keys(page_idx):
     """Initialize widget session state keys for the given page SKU slice."""
     start = page_idx * ROWS_PER_PAGE
@@ -615,59 +811,77 @@ if st.sidebar.button("🔄 Reset Usage Stats"):
 # Main content area
 st.header("")
 
-# CSV Upload for SKU list
-st.subheader("📋 Upload SKU List")
+# Load SKUs from Google Sheet on page load
+st.subheader("📋 SKU List from Google Sheet")
 
-uploaded_file = st.file_uploader("Upload a CSV file with SKU names", type=["csv"])
+# Sidebar button to force-refresh SKU data
+if st.sidebar.button("🔄 Reload SKUs from Sheet"):
+    st.session_state.sheet_skus_loaded = False
+    # Clear old per-SKU widget keys
+    if st.session_state.sku_data:
+        for old_idx in range(len(st.session_state.sku_data)):
+            for prefix in ['cat_', 'bt_', 'tags_', 'bt_select_', 'bt_custom_', 'bt_adding_new_',
+                           'gk_adding_new_', 'sku_',
+                           'accept_new_bt_', 'accept_bt_', 'dismiss_new_bt_', 'dismiss_bt_', 'new_gk_']:
+                key = f"{prefix}{old_idx}"
+                if key in st.session_state:
+                    del st.session_state[key]
+    st.session_state.sku_data = None
+    st.session_state.page_index = 0
+    st.rerun()
 
-if uploaded_file is not None and (st.session_state.sku_data is None or st.session_state.get('uploaded_file_name') != uploaded_file.name):
-    try:
-        upload_df = pd.read_csv(uploaded_file)
-        # Find the SKU name column (first text column or column named 'SKU', 'sku_name', 'Name', etc.)
-        sku_col = None
-        for col in upload_df.columns:
-            if col.lower() in ['sku', 'sku_name', 'sku name', 'name', 'product', 'product_name', 'product name', 'item', 'item_name']:
-                sku_col = col
-                break
-        if sku_col is None:
-            # Use first column
-            sku_col = upload_df.columns[0]
+# Load SKUs from Google Sheet if not already loaded
+if not st.session_state.sheet_skus_loaded:
+    if not GOOGLE_SHEETS_WEBAPP_URL:
+        st.error("❌ GOOGLE_SHEETS_WEBAPP_URL not configured. Please set it in your .env file.")
+        st.info("This URL is the deployed Google Apps Script Web App endpoint.")
+        st.stop()
+    
+    with st.spinner("Loading SKUs from Google Sheet..."):
+        result = load_skus_from_main_sheet(offset=0, limit=SKU_LOAD_LIMIT)
         
-        # Clear old per-SKU widget keys from session state
-        if st.session_state.sku_data:
-            for old_idx in range(len(st.session_state.sku_data)):
-                for prefix in ['cat_', 'bt_', 'tags_', 'bt_select_', 'bt_custom_', 'bt_adding_new_',
-                               'gk_adding_new_', 'sku_',
-                               'accept_new_bt_', 'accept_bt_', 'dismiss_new_bt_', 'dismiss_bt_', 'new_gk_']:
-                    key = f"{prefix}{old_idx}"
-                    if key in st.session_state:
-                        del st.session_state[key]
-        
-        st.session_state.sku_data = []
-        st.session_state.suggested_new_bts = {}
-        st.session_state.needs_category_review = set()
-        st.session_state.page_index = 0
-        st.session_state.tagging_complete = False
-        st.session_state.uploaded_file_name = uploaded_file.name
-        # Store original dataframe to preserve extra columns on export
-        st.session_state.uploaded_df = upload_df
-        st.session_state.uploaded_sku_col = sku_col
-        
-        for idx, row in upload_df.iterrows():
-            sku_name = str(row[sku_col]).strip()
-            if sku_name and sku_name.lower() != 'nan':
-                st.session_state.sku_data.append({
-                    'sku_name': sku_name,
-                    'category': '',
-                    'basic_type': '',
-                    'generic_keywords': []
-                })
-        
-        _init_page_widget_keys(0)
-        print(f"[OK] Loaded {len(st.session_state.sku_data)} SKUs from uploaded CSV")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Error reading CSV: {str(e)}")
+        if result.get('success') and result.get('skus'):
+            # Clear old per-SKU widget keys from session state
+            if st.session_state.sku_data:
+                for old_idx in range(len(st.session_state.sku_data)):
+                    for prefix in ['cat_', 'bt_', 'tags_', 'bt_select_', 'bt_custom_', 'bt_adding_new_',
+                                   'gk_adding_new_', 'sku_',
+                                   'accept_new_bt_', 'accept_bt_', 'dismiss_new_bt_', 'dismiss_bt_', 'new_gk_']:
+                        key = f"{prefix}{old_idx}"
+                        if key in st.session_state:
+                            del st.session_state[key]
+            
+            st.session_state.sku_data = []
+            st.session_state.suggested_new_bts = {}
+            st.session_state.needs_category_review = set()
+            st.session_state.page_index = 0
+            st.session_state.tagging_complete = False
+            st.session_state.total_sheet_rows = result.get('total_rows', 0)
+            
+            for sku_info in result.get('skus', []):
+                sku_name = sku_info.get('sku_name', '').strip()
+                if sku_name and sku_name.lower() != 'nan':
+                    # Parse generic keywords from comma-separated string
+                    gks_raw = sku_info.get('generic_keywords', '')
+                    gks = [kw.strip() for kw in gks_raw.split(',') if kw.strip()] if gks_raw else []
+                    
+                    st.session_state.sku_data.append({
+                        'sku_name': sku_name,
+                        'category': sku_info.get('category', ''),
+                        'basic_type': sku_info.get('basic_type', ''),
+                        'generic_keywords': gks,
+                        'sheet_row': sku_info.get('row')  # Store the sheet row number for updates
+                    })
+            
+            _init_page_widget_keys(0)
+            st.session_state.sheet_skus_loaded = True
+            print(f"[OK] Loaded {len(st.session_state.sku_data)} SKUs from Google Sheet (total in sheet: {st.session_state.total_sheet_rows})")
+            st.rerun()
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            st.error(f"❌ Failed to load SKUs from Google Sheet: {error_msg}")
+            st.info("Make sure the Google Apps Script is deployed and the 'Main' sheet exists with SKU data.")
+            st.stop()
 
 # Show status
 if st.session_state.sku_data:
@@ -675,9 +889,9 @@ if st.session_state.sku_data:
     total_pages = (total_skus + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE
     current_page = st.session_state.page_index + 1
     tagged_count = sum(1 for item in st.session_state.sku_data if item.get('basic_type') or item.get('category'))
-    st.success(f"✅ Loaded {total_skus} SKUs ({tagged_count} tagged) | Page {current_page} of {total_pages}")
-elif uploaded_file is None:
-    st.info("👆 Upload a CSV file containing SKU names to get started.")
+    st.success(f"✅ Loaded {total_skus} SKUs ({tagged_count} tagged) | Page {current_page} of {total_pages} | Total in sheet: {st.session_state.total_sheet_rows}")
+else:
+    st.info("⏳ Loading SKUs from Google Sheet...")
     st.stop()
 
 if st.session_state.sku_data:
@@ -1188,6 +1402,26 @@ if st.session_state.sku_data:
     div[data-testid="stColumn"]:has(.bt-is-new) div[data-testid="stVerticalBlock"] {
         gap: 0 !important;
     }
+    /* GK refresh button alignment - make the nested columns row align items to top */
+    div[data-testid="stColumn"]:nth-child(5) div[data-testid="stHorizontalBlock"] {
+        align-items: flex-start !important;
+        gap: 0.25rem !important;
+    }
+    /* The refresh button column - remove extra spacing */
+    div[data-testid="stColumn"]:nth-child(5) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    div[data-testid="stColumn"]:nth-child(5) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child > div {
+        padding-top: 0 !important;
+    }
+    /* Make the refresh button smaller and aligned */
+    div[data-testid="stColumn"]:nth-child(5) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child button {
+        padding: 0.25rem 0.5rem !important;
+        min-height: 38px !important;
+        height: 38px !important;
+        line-height: 1 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     
@@ -1261,8 +1495,86 @@ if st.session_state.sku_data:
         # Fallback to all GKs
         return gk_options
 
+    def _refresh_gks_with_gemini(idx):
+        """Fetch new GKs for a single SKU using Gemini API based on current Basic Type."""
+        item = st.session_state.sku_data[idx]
+        basic_type = item.get('basic_type', '')
+        category = item.get('category', '')
+        sku_name = item.get('sku_name', '')
+        
+        if not basic_type:
+            st.toast(f"⚠️ No Basic Type set for '{sku_name[:30]}...'", icon="⚠️")
+            return
+        
+        if not gemini_api_key:
+            st.toast("⚠️ GEMINI_API_KEY not set", icon="⚠️")
+            return
+        
+        # Get GK list for the basic type
+        gk_list = []
+        if st.session_state.mapping_bt_gk_df is not None:
+            gk_rows = st.session_state.mapping_bt_gk_df.loc[
+                st.session_state.mapping_bt_gk_df.iloc[:, 0] == basic_type,
+                st.session_state.mapping_bt_gk_df.columns[1]
+            ].tolist()
+            if gk_rows:
+                if isinstance(gk_rows[0], list):
+                    gk_list = gk_rows[0]
+                else:
+                    gk_list = gk_rows
+        
+        if not gk_list:
+            st.toast(f"⚠️ No GK mapping found for BT '{basic_type}'", icon="⚠️")
+            return
+        
+        try:
+            # Call Gemini API
+            prompt = generic_keyword_prompt(sku_name, category, basic_type, gk_list)
+            result, usage_stats = gemini_call_with_usage(gemini_api_key, prompt, GEMINI_MODEL)
+            
+            # Track usage
+            usage_stats['operation'] = 'Gemini: Refresh GK'
+            usage_stats['batch'] = f"SKU: {sku_name[:30]}..."
+            st.session_state.api_usage_stats.append(usage_stats)
+            st.session_state.total_session_cost += usage_stats['total_cost']
+            st.session_state.total_session_tokens += usage_stats['total_tokens']
+            
+            # Log to Google Sheets
+            log_gpt_cost_to_sheets(usage_stats, {
+                'sku_count': 1,
+                'notes': f'[Gemini/{GEMINI_MODEL}] Refresh GK for: {sku_name[:50]}'
+            })
+            
+            # Parse response
+            result_clean = result.strip()
+            if result_clean.startswith('```'):
+                lines = result_clean.split('\n')
+                result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
+            
+            parsed = json.loads(result_clean)
+            gk_response = parsed.get('selected_generic_keywords', [])
+            
+            # Handle confidence-level format
+            if gk_response and isinstance(gk_response[0], dict):
+                generic_keywords = [kw['keyword'] for kw in gk_response if 'keyword' in kw]
+            else:
+                generic_keywords = gk_response if isinstance(gk_response, list) else []
+            
+            # Update sku_data (the widget will pick up new values after rerun)
+            st.session_state.sku_data[idx]['generic_keywords'] = generic_keywords
+            # Delete the widget key so it re-initializes with new default on rerun
+            if f"tags_{idx}" in st.session_state:
+                del st.session_state[f"tags_{idx}"]
+            
+            st.toast(f"✅ Refreshed {len(generic_keywords)} GKs for '{sku_name[:25]}...'", icon="✅")
+            print(f"[OK] Gemini GK refresh for '{sku_name}': {generic_keywords}")
+            
+        except Exception as e:
+            st.toast(f"❌ Error: {str(e)[:50]}", icon="❌")
+            print(f"[ERROR] Gemini GK refresh failed for '{sku_name}': {e}")
+
     def _render_keywords_fragment(idx, gk_options):
-        """Render keyword multiselect + manual entry."""
+        """Render keyword multiselect + manual entry + refresh button."""
         current_keywords = st.session_state.sku_data[idx]['generic_keywords']
         
         ADD_NEW_SENTINEL = "+ Add New"
@@ -1275,78 +1587,105 @@ if st.session_state.sku_data:
         
         is_adding = st.session_state.get(f"gk_adding_new_{idx}", False)
         
-        if not is_adding:
-            # Normal mode: multiselect with "+ Add New" as first option (always visible at top)
-            options_with_add = [ADD_NEW_SENTINEL] + all_options
-            
-            # Use on_change to detect "+ Add New" selection (can't modify widget key after render)
-            def _on_gk_change(idx=idx):
-                selected = st.session_state.get(f"tags_{idx}", [])
-                if ADD_NEW_SENTINEL in selected:
-                    # Strip sentinel, save real keywords, switch to adding mode
-                    real = [kw for kw in selected if kw != ADD_NEW_SENTINEL]
-                    st.session_state.sku_data[idx]['generic_keywords'] = real
-                    st.session_state[f"tags_{idx}"] = real
-                    st.session_state[f"gk_adding_new_{idx}"] = True
-                else:
+        # Layout: multiselect takes most space, refresh button on the right (top-aligned)
+        gk_col, refresh_col = st.columns([0.90, 0.10], vertical_alignment="top", gap="small")
+        
+        with gk_col:
+            if not is_adding:
+                # Normal mode: multiselect with "+ Add New" as first option (always visible at top)
+                options_with_add = [ADD_NEW_SENTINEL] + all_options
+                
+                # Use on_change to detect "+ Add New" selection (can't modify widget key after render)
+                def _on_gk_change(idx=idx):
+                    selected = st.session_state.get(f"tags_{idx}", [])
+                    if ADD_NEW_SENTINEL in selected:
+                        # Strip sentinel, save real keywords, switch to adding mode
+                        real = [kw for kw in selected if kw != ADD_NEW_SENTINEL]
+                        st.session_state.sku_data[idx]['generic_keywords'] = real
+                        st.session_state[f"tags_{idx}"] = real
+                        st.session_state[f"gk_adding_new_{idx}"] = True
+                    else:
+                        st.session_state.sku_data[idx]['generic_keywords'] = list(selected)
+                
+                st.multiselect(
+                    "GK",
+                    options=options_with_add,
+                    default=current_keywords,
+                    key=f"tags_{idx}",
+                    label_visibility="collapsed",
+                    placeholder="Select keywords...",
+                    on_change=_on_gk_change
+                )
+            else:
+                # Adding mode: multiselect (no sentinel) + text input below
+                def _on_gk_select_change(idx=idx):
+                    selected = st.session_state.get(f"tags_{idx}", [])
                     st.session_state.sku_data[idx]['generic_keywords'] = list(selected)
+                
+                st.multiselect(
+                    "GK",
+                    options=all_options,
+                    default=current_keywords,
+                    key=f"tags_{idx}",
+                    label_visibility="collapsed",
+                    placeholder="Select keywords...",
+                    on_change=_on_gk_select_change
+                )
+                
+                def _on_new_gk(idx=idx):
+                    val = st.session_state.get(f"new_gk_{idx}", "").strip()
+                    if val:
+                        kw_cap = val.title()
+                        current = st.session_state.sku_data[idx]['generic_keywords']
+                        if kw_cap.lower() not in {k.lower() for k in current}:
+                            current.append(kw_cap)
+                            st.session_state.sku_data[idx]['generic_keywords'] = current
+                        st.session_state[f"tags_{idx}"] = current
+                    st.session_state[f"new_gk_{idx}"] = ""
+                    st.session_state[f"gk_adding_new_{idx}"] = False
+                    # Flag to refocus the multiselect after rerun
+                    st.session_state[f"gk_refocus_{idx}"] = True
+                
+                st.text_input(
+                    "Add GK",
+                    key=f"new_gk_{idx}",
+                    label_visibility="collapsed",
+                    placeholder="Type new keyword and press Enter...",
+                    on_change=_on_new_gk
+                )
+                # Auto-focus the new GK text input
+                components.html(
+                    f"""
+                    <script>
+                    const inputs = window.parent.document.querySelectorAll('input[aria-label="Add GK"]');
+                    if (inputs.length > 0) {{ inputs[inputs.length - 1].focus(); }}
+                    </script>
+                    """,
+                    height=0
+                )
+        
+        with refresh_col:
+            # Refresh button - calls Gemini to get new GKs based on current BT
+            has_bt = bool(st.session_state.sku_data[idx].get('basic_type', ''))
+            has_gemini = bool(gemini_api_key)
             
-            st.multiselect(
-                "GK",
-                options=options_with_add,
-                default=current_keywords,
-                key=f"tags_{idx}",
-                label_visibility="collapsed",
-                placeholder="Select keywords...",
-                on_change=_on_gk_change
-            )
-        else:
-            # Adding mode: multiselect (no sentinel) + text input below
-            def _on_gk_select_change(idx=idx):
-                selected = st.session_state.get(f"tags_{idx}", [])
-                st.session_state.sku_data[idx]['generic_keywords'] = list(selected)
+            def _on_refresh_gk(idx=idx):
+                st.session_state[f"gk_refresh_pending_{idx}"] = True
             
-            st.multiselect(
-                "GK",
-                options=all_options,
-                default=current_keywords,
-                key=f"tags_{idx}",
-                label_visibility="collapsed",
-                placeholder="Select keywords...",
-                on_change=_on_gk_select_change
+            st.button(
+                "🔄",
+                key=f"refresh_gk_{idx}",
+                on_click=_on_refresh_gk,
+                disabled=not (has_bt and has_gemini),
+                help="Refresh GKs using Gemini (based on current Basic Type)" if has_gemini else "Set GEMINI_API_KEY to enable",
+                use_container_width=True
             )
-            
-            def _on_new_gk(idx=idx):
-                val = st.session_state.get(f"new_gk_{idx}", "").strip()
-                if val:
-                    kw_cap = val.title()
-                    current = st.session_state.sku_data[idx]['generic_keywords']
-                    if kw_cap.lower() not in {k.lower() for k in current}:
-                        current.append(kw_cap)
-                        st.session_state.sku_data[idx]['generic_keywords'] = current
-                    st.session_state[f"tags_{idx}"] = current
-                st.session_state[f"new_gk_{idx}"] = ""
-                st.session_state[f"gk_adding_new_{idx}"] = False
-                # Flag to refocus the multiselect after rerun
-                st.session_state[f"gk_refocus_{idx}"] = True
-            
-            st.text_input(
-                "Add GK",
-                key=f"new_gk_{idx}",
-                label_visibility="collapsed",
-                placeholder="Type new keyword and press Enter...",
-                on_change=_on_new_gk
-            )
-            # Auto-focus the new GK text input
-            components.html(
-                f"""
-                <script>
-                const inputs = window.parent.document.querySelectorAll('input[aria-label="Add GK"]');
-                if (inputs.length > 0) {{ inputs[inputs.length - 1].focus(); }}
-                </script>
-                """,
-                height=0
-            )
+        
+        # Handle pending refresh (execute after button click triggers rerun)
+        if st.session_state.pop(f"gk_refresh_pending_{idx}", False):
+            with st.spinner("🔄 Fetching GKs..."):
+                _refresh_gks_with_gemini(idx)
+                st.rerun()
         
         # After adding a new GK, refocus the multiselect input for THIS SKU
         if st.session_state.pop(f"gk_refocus_{idx}", False):
@@ -1613,7 +1952,7 @@ if st.session_state.sku_data:
         st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
     
     # Save & Navigate
-    st.header("� Export & Navigate")
+    st.header("📤 Save & Navigate")
     
     # Calculate pagination info
     total_skus = len(st.session_state.sku_data)
@@ -1669,13 +2008,13 @@ if st.session_state.sku_data:
     
     if new_gk_mappings:
         with st.expander("🆕 New Generic Keywords Detected", expanded=True):
-            st.info("The following generic keywords were manually added and will be synced to Google Sheets on export:")
+            st.info("The following generic keywords were manually added and will be synced to Google Sheets when you click 'Update Tags':")
             for bt, keywords in new_gk_mappings.items():
                 st.markdown(f"**{bt}:** {', '.join(keywords)}")
     
     if new_basic_types:
         with st.expander("🆕 New Basic Types Detected", expanded=True):
-            st.info("The following new basic types will be added to Google Sheets on export:")
+            st.info("The following new basic types will be added to Google Sheets when you click 'Update Tags':")
             for bt_name, bt_info in new_basic_types.items():
                 st.markdown(f"**{bt_name}** → Category: *{bt_info['category']}*")
                 if bt_info['generic_keywords']:
@@ -1687,39 +2026,26 @@ if st.session_state.sku_data:
     nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
     
     with nav_col1:
-        if st.button("⬅️ Previous Page", use_container_width=True, disabled=(current_page == 0)):
+        prev_disabled = (current_page == 0)
+        if st.button("⬅️ Previous Page", use_container_width=True, disabled=prev_disabled):
+            # Sync current page to Google Sheet before navigating
+            with st.spinner("Saving tags to Google Sheet..."):
+                success = sync_current_page_to_sheet()
+                if success:
+                    st.toast("✅ Tags saved to Google Sheet", icon="✅")
+                else:
+                    st.toast("⚠️ Some tags may not have been saved", icon="⚠️")
             st.session_state.page_index -= 1
             st.rerun()
     
     with nav_col2:
-        # Build export CSV data
-        export_rows = []
-        for item in st.session_state.sku_data:
-            export_rows.append({
-                'SKU Name': item['sku_name'],
-                'Category': item.get('category', ''),
-                'Basic Type': item.get('basic_type', ''),
-                'Generic Keywords': ', '.join(item.get('generic_keywords', []))
-            })
-        export_df = pd.DataFrame(export_rows)
-        csv_data = export_df.to_csv(index=False).encode('utf-8')
-        
-        # Check if export was triggered on previous rerun
-        if st.session_state.get('_export_ready', False):
-            st.download_button(
-                label="⬇️ Download CSV",
-                data=csv_data,
-                file_name=f"tagged_skus_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                type="primary"
-            )
-            st.session_state._export_ready = False
-        else:
-            if st.button("📥 Export Tagged CSV", use_container_width=True, type="primary"):
+        # Update Tags button - syncs current data to Google Sheet
+        if st.button("📤 Update Tags", use_container_width=True, type="primary", help="Save all tags to Google Sheet"):
+            with st.spinner("Saving tags to Google Sheet..."):
+                # First sync new mappings
                 if new_gk_mappings or new_basic_types:
-                    progress = st.progress(0, text="Syncing new mappings to Google Sheets...")
-                    total_steps = len(new_basic_types) + (1 if new_gk_mappings else 0) + 1  # +1 for CSV prep
+                    progress = st.progress(0, text="Syncing new mappings...")
+                    total_steps = len(new_basic_types) + (1 if new_gk_mappings else 0) + 1
                     step = 0
                     
                     # Add new basic types
@@ -1733,8 +2059,6 @@ if st.session_state.sku_data:
                             if success:
                                 log_new_bt_update(bt_name, bt_info['category'], bt_info.get('source_sku', 'Unknown'), 'added')
                                 print(f"[OK] Added new BT '{bt_name}' to Google Sheets")
-                            else:
-                                print(f"[WARN] Could not add new BT '{bt_name}' to Google Sheets")
                             step += 1
                             progress.progress(step / total_steps, text=f"Added BT: {bt_name}")
                         st.session_state.accepted_new_bts = {}
@@ -1743,21 +2067,28 @@ if st.session_state.sku_data:
                     existing_bt_gk_mappings = {bt: kws for bt, kws in new_gk_mappings.items() if bt not in new_basic_types}
                     if existing_bt_gk_mappings:
                         progress.progress(step / total_steps, text="Syncing new generic keywords...")
-                        success = update_bt_gk_mappings(existing_bt_gk_mappings)
-                        if success:
-                            print(f"[OK] Synced {sum(len(v) for v in existing_bt_gk_mappings.values())} new GKs to Google Sheets")
-                        else:
-                            print("[WARN] Could not sync new GKs to Google Sheets")
+                        update_bt_gk_mappings(existing_bt_gk_mappings)
                         step += 1
                     
-                    progress.progress(1.0, text="Preparing CSV...")
+                    progress.progress(1.0, text="Updating SKU tags...")
                     progress.empty()
                 
-                st.session_state._export_ready = True
-                st.rerun()
+                # Now sync SKU tags to the Main sheet
+                success = sync_current_page_to_sheet()
+                if success:
+                    st.success("✅ All tags saved to Google Sheet!")
+                else:
+                    st.warning("⚠️ Some tags may not have been saved. Check the console for details.")
     
     with nav_col3:
         is_last_page = (current_page + 1) >= total_pages
         if st.button("Next Page ➡️", use_container_width=True, disabled=is_last_page):
+            # Sync current page to Google Sheet before navigating
+            with st.spinner("Saving tags to Google Sheet..."):
+                success = sync_current_page_to_sheet()
+                if success:
+                    st.toast("✅ Tags saved to Google Sheet", icon="✅")
+                else:
+                    st.toast("⚠️ Some tags may not have been saved", icon="⚠️")
             st.session_state.page_index += 1
             st.rerun()
