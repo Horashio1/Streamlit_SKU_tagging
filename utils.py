@@ -13,6 +13,13 @@ PRICING = {
     'gpt-4': {'input': 0.03, 'output': 0.06},
     'gpt-4-turbo': {'input': 0.01, 'output': 0.03},
     'gpt-35-turbo': {'input': 0.0005, 'output': 0.0015},
+    # Google Gemini pricing (per 1K tokens) - as of 2024
+    'gemini-2.0-flash': {'input': 0.0001, 'output': 0.0004},
+    'gemini-1.5-flash': {'input': 0.000075, 'output': 0.0003},
+    'gemini-1.5-pro': {'input': 0.00125, 'output': 0.005},
+    'gemini-2.0-flash-lite': {'input': 0.000075, 'output': 0.0003},
+    'gemini-3.5-flash': {'input': 0.00015, 'output': 0.0006},  # Estimate based on flash tier
+    'gemini-3.1-flash-lite': {'input': 0.000075, 'output': 0.0003},  # Lite tier pricing
     'default': {'input': 0.005, 'output': 0.015}  # Default fallback pricing
 }
 
@@ -139,6 +146,100 @@ def gpt_call_with_usage(open_api_key, api_version, azure_endpoint, deployment_na
     print("="*80 + "\n")
 
     return response, usage_stats
+
+
+# ============================================================================
+# Google Gemini API Functions
+# ============================================================================
+
+def gemini_call(api_key, prompt, model_name='gemini-2.0-flash'):
+    """
+    Make a call to Google Gemini model
+    
+    Args:
+        api_key: Google Gemini API key
+        prompt: The prompt to send to the model
+        model_name: Gemini model name (default: gemini-2.0-flash)
+    
+    Returns:
+        str: The model's response content
+    """
+    response, _ = gemini_call_with_usage(api_key, prompt, model_name)
+    return response
+
+
+def gemini_call_with_usage(api_key, prompt, model_name='gemini-2.0-flash'):
+    """
+    Make a call to Google Gemini model and return usage statistics
+    
+    Args:
+        api_key: Google Gemini API key
+        prompt: The prompt to send to the model
+        model_name: Gemini model name (default: gemini-2.0-flash)
+    
+    Returns:
+        tuple: (response_content, usage_stats)
+            - response_content (str): The model's response content
+            - usage_stats (dict): Token counts and cost information
+    """
+    import google.genai as genai
+    
+    print("\n" + "="*80)
+    print("GEMINI CALL REQUEST")
+    print("="*80)
+    print(f"Model: {model_name}")
+    print(f"Prompt (first 500 chars):\n{prompt[:500]}...")
+    print("="*80)
+    
+    client = genai.Client(api_key=api_key)
+    
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt
+    )
+    
+    response_text = response.text
+    
+    # Extract token usage from response metadata
+    usage_metadata = getattr(response, 'usage_metadata', None)
+    if usage_metadata:
+        prompt_tokens = getattr(usage_metadata, 'prompt_token_count', 0) or 0
+        completion_tokens = getattr(usage_metadata, 'candidates_token_count', 0) or 0
+        total_tokens = getattr(usage_metadata, 'total_token_count', 0) or (prompt_tokens + completion_tokens)
+    else:
+        # Fallback: estimate tokens if metadata not available
+        prompt_tokens = len(prompt) // 4  # rough estimate
+        completion_tokens = len(response_text) // 4
+        total_tokens = prompt_tokens + completion_tokens
+    
+    # Calculate cost
+    cost = calculate_cost(prompt_tokens, completion_tokens, model_name)
+    
+    usage_stats = {
+        'prompt_tokens': prompt_tokens,
+        'completion_tokens': completion_tokens,
+        'total_tokens': total_tokens,
+        'input_cost': cost['input_cost'],
+        'output_cost': cost['output_cost'],
+        'total_cost': cost['total_cost'],
+        'model': model_name
+    }
+    
+    print("\n" + "="*80)
+    print("GEMINI CALL RESPONSE")
+    print("="*80)
+    print(f"Response: {response_text}")
+    print(f"\n--- Token Usage ---")
+    print(f"Prompt tokens: {prompt_tokens}")
+    print(f"Completion tokens: {completion_tokens}")
+    print(f"Total tokens: {total_tokens}")
+    print(f"\n--- Cost (USD) ---")
+    print(f"Input cost: ${cost['input_cost']:.6f}")
+    print(f"Output cost: ${cost['output_cost']:.6f}")
+    print(f"Total cost: ${cost['total_cost']:.6f}")
+    print("="*80 + "\n")
+
+    return response_text, usage_stats
 
 
 def category_prompt_old(sku_name, category_list):

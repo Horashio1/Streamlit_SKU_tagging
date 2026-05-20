@@ -1,51 +1,51 @@
 SKU Name,Expected Category,Predicted Category,Category Result,Expected Basic Type,Predicted Basic Type,BT Result,GK Recall (%),Missing GKs,Extra GKs
-Fontana Pomegranate Juice 1l,Groceries,Groceries,✅ PASS,Fruit Drink,Pomegranate Juice,❌ FAIL,66.7,"Fruit Drink, Fontana",
-Kids Joy Baby Lanundry Detergent 1l,Baby Care,,⬜ BLANK,Baby Detergent Liquid,,⬜ BLANK,0.0,"Baby Detergent Liquid, Kids Joy Baby Lanundry Detergent, Baby Care",
-Marvel Lady Tampons 10s,Personal Care,Personal Care,✅ PASS,Tampons,Tampons,✅ PASS,50.0,"Personal Care, Marvel Tampons",
-Keells Krest Jumbo Peanut Chilli 100G,Groceries,Groceries,✅ PASS,Peanuts,Jumbo Peanuts,❌ FAIL,71.4,"Keells Krest Peanuts, Keels Peanuts","Keells Chilli Jumbo Peanuts, Keells Jumbo Peanuts, Chilli Jumbo Peanuts, Keells Krest Jumbo Peanuts, Keells Krest Chilli Jumbo Peanuts, Snacks"
-Finch Gourment Turkish Dried Figs 75g,Groceries,,⬜ BLANK,Dried Fruit,,⬜ BLANK,0.0,"Dried Fruit, Finch Dried Figs, Dried Figs, Groceries",
-Fortune Biriyani Special Basmathi Rice 1kg,Groceries,Groceries,✅ PASS,Basmathi Rice,Basmathi Rice,✅ PASS,60.0,"Fortune Basmati Rice, Fortune Biriyani Special Basmathi Rice",Extra Long Basmathi Rice
-Maped Color Pencil Box-color Peps 12,Stationery,Stationery,✅ PASS,Colour Pencil,Colour Pencil,✅ PASS,100.0,,
-Mas Roasted Curry Powder 100g,Groceries,Groceries,✅ PASS,Curry Powder,Curry Powder,✅ PASS,100.0,,
-Mister Potato Original 145G,Groceries,Groceries,✅ PASS,Potato Chips,Potato Chips,✅ PASS,75.0,Mister Potato Original,"Snacks, Chips, Mister Potato Chips Original, Original Potato Chips"
-Kotmale Cheese Slices 200g,Dairy,Dairy,✅ PASS,Cheese Slices,Cheese Slices,✅ PASS,100.0,,
-Nescafe Classic Bag In Box 12x50g,Groceries,Groceries,✅ PASS,Instant Coffee,Instant Coffee,✅ PASS,40.0,"Nescafe Classic, Coffee, Nescafe Coffee","Nescafe Classic Instant Coffee, Nescafe Instant Coffee"
-La Treats Fruit & Nuts Cookies 105g,Groceries,Groceries,✅ PASS,Cookies,Cookies,✅ PASS,66.7,"Biscuit, La Treats Fruit and Nut Cookies",La Trets Fruit and Nut Cookies
-Jovees Face Scrub Jojoba And Neem 100g,Personal Care,Personal Care,✅ PASS,Face Scrub,Face Scrub,✅ PASS,75.0,Jovees Face Scrub Jojoba And Neem,"Jojoba and Neem Face Scrub, Jovees Jojoba and Neem Face Scrub"
-Kandos Chocolate Super Large Milk 80g,Groceries,Groceries,✅ PASS,Chocolate,Chocolate,✅ PASS,75.0,"Chocolate Bar, Kandos Chocolate Bar","Super Large Milk Chocolate, Milk Chocolate Bar, Kandos Super Large Milk Chocolate"
-Magic Vanilla 1l,Dairy,Groceries,❌ FAIL,Ice Cream Tub,Vanilla Essence,❌ FAIL,0.0,"Dairy, Ice Cream, Magic Vanilla Ice Cream, Magic Ice Cream, Vanilla Ice Cream","Groceries, Baking Goods, Vanilla Essence"
-Goldi Kochchi Sausage 600g,Frozen Foods,Frozen Foods,✅ PASS,Sausage,Sausage,✅ PASS,66.7,"Spicy Sausage, Kochi Sausage","Poultry and Meat, Kochchi Sausage"
-Cic Sudu Suduru Rice 1kg,Groceries,Groceries,✅ PASS,Suduru Samba,Suduru Rice,❌ FAIL,12.5,"Sudu Suduru, White Suduru, Suduru Samba, Groceries, CIC White Suduru Samba, Suduru Samba Rice, Cic Suduru Samba Rice","Sudu Suduru Rice, Suduru Rice, Cic Sudu Suduru Rice"
-Dettol Soap Lasting Fresh 70g,Personal Care,Personal Care,✅ PASS,Soap,Soap,✅ PASS,100.0,,Skincare Soap
-MALIBAN FRESH MILK UHT 1L,Dairy,Dairy,✅ PASS,Fresh Milk,Fresh Milk,✅ PASS,100.0,,
-Nan 2 Hm-o Follow Up Formula 6-12 Months 400g,Baby Care,Baby Care,✅ PASS,Baby Milk Powder,Baby Milk Powder,✅ PASS,25.0,"Infant Baby Formula, Nangrow 2 Hmo Milk Formula 6 - 12 months, Nestle Nangrow 3 Milk Powder, Nestle Nangrow 2 HmO Infant Milk Powder, 6 - 12 months Milk Powder, Infant Formula","6 to 12 Months Milk Powder, Nestle Nan 2 HmO 6 to 12 Months Follow Up Formula, Nestle Nan 2 HmO Milk Powder, Baby Formula"
-Campagna Whole Peeled Tomatoes 800g,Groceries,Groceries,✅ PASS,Whole Peeled Tomatoes,Whole Peeled Tomatoes,✅ PASS,75.0,Campagna Whole Peeled Tomatoes,Tomato
-Cuisine Calamari Milky Fried 300g,Frozen Foods,Frozen Foods,✅ PASS,Calamari,Calamari,✅ PASS,33.3,"Cuisine, Cuisine Calamari Milky Fried","Seafood, Calamari, Milky Fried Calamari"
-Ahmad Tea Chai Spice Tea 100g,Groceries,Groceries,✅ PASS,Chai Tea,Tea,❌ FAIL,40.0,"Chai Spice Tea, Ahmad Chai Spice Tea, Premium Tea",
-Magic Fruit & Nut Stick 75ml,Dairy,Groceries,❌ FAIL,Cone Ice Cream,Fruit & Nut Stick,❌ FAIL,0.0,"Magic Fruit and Nut Ice Cream, Fruit and Nut Ice Cream, Dairy, Ice Cream, Magic Ice Cream, Magic Fruit and Nut Ice Cream Stick",
-Motha Cocoa Powder 100g,Groceries,Groceries,✅ PASS,Cocoa Powder,Cocoa Powder,✅ PASS,100.0,,Baking Goods
-Prevence Body Lotion Fresh Relaxing 300ml,Personal Care,Personal Care,✅ PASS,Body Lotion,Body Lotion,✅ PASS,50.0,"Prevence Body Lotion Fresh Relaxing, Prevence Body Lotion","Fresh Relaxing Body Lotion, Prevense Body Lotion, Prevense Fresh Relaxing Body Lotion"
-Bairaha Kochchi & Nai Miris Sausages 250g,Poultry and Meat,Frozen Foods,❌ FAIL,Sausage,Sausage,✅ PASS,62.5,"Spicy Sausage, Nai mIirs Sausage, Kochi Sausage","Kochchi and Nai Miris Sausage, Bairaha Kochchi and Nai Miris Sausage"
-Real Tasty Devilled Dhal 200g,Groceries,Groceries,✅ PASS,Devilled Dhal,Devilled Dhal,✅ PASS,60.0,"Real Tasty Dhal, Fried Dhal",
-Ma's Fish Ambulthiyal Paste 75g,Groceries,Groceries,✅ PASS,Fish Ambulthiyal Paste,Fish Ambulthiyal Paste,✅ PASS,66.7,Mas Fish Ambulthiyal Paste,
-Munchee Biscuit Choc Shock Blueberry 90g,Groceries,Groceries,✅ PASS,Biscuits,Biscuit,❌ FAIL,66.7,"Munchee Biscuit, Choc Shock Blueberry",Munchee Choc Shock
-Huejay Cape Goosberry 180g,Fresh Produce,Fresh Produce,✅ PASS,Cape Gooseberry,Cape Gooseberry,✅ PASS,100.0,,
-Samaayu Kolakenda Gotukola 50g,Groceries,Groceries,✅ PASS,Kolakenda,Kolakenda,✅ PASS,40.0,"Kolakanda, Samaayu Kola Soup, Herbal Porridge",Kolakenda
-Kandos Milk Chocolate Bar 45g,Groceries,Groceries,✅ PASS,Chocolate,Chocolate Bar,❌ FAIL,25.0,"Chocolate, Kandos Chocolate, Kandos Milk Chocolate, Kandos Milk Chocolate Bar, Milk Chocolate, Kandos Chocolate Bar",
-Nandos Peri Peri Sauce Xx Hot 250g,Groceries,Groceries,✅ PASS,Peri Peri Sauce,Peri Peri Sauce,✅ PASS,62.5,"Chilli Sauce, Nandos Peri Peri Sauce, Extra Hot Sauce","Extra Peri Peri Hot Sauce, Nandos Peri Peri Extra Hot Sauce"
-Alerics Ice Cream Salted Caramel With Honey Comb 1000ml,Dairy,Dairy,✅ PASS,Ice Cream Tub,Ice Cream,❌ FAIL,60.0,"Salted Caramel Ice Cream, Alerics Salted Caramel Ice Cream","Alerics Ice Cream Tub, Ice Cream Tub"
-Pears Baby Talc Pure & Gentle 90g,Baby Care,Baby Care,✅ PASS,Baby Powder,Baby Powder,✅ PASS,100.0,,Powder
-Gold 3 In 1 Mens Face Cream 25g,Personal Care,Personal Care,✅ PASS,Face Cream,Face Cream,✅ PASS,80.0,Glow And Handsome Face Cream,"Gold 3 in 1 Mens Face Cream, Cream"
-Shepherd'S Delight Chocolate Chip Cookies 100G,Groceries,Groceries,✅ PASS,Cookies,Cookies,✅ PASS,66.7,"Shepherd Delight Cookies, Biscuit",Shepherds Delight Cookies
-Maliban Biscuit Krisco 170g,Groceries,Groceries,✅ PASS,Biscuits,Biscuit,❌ FAIL,80.0,Maliban Krisco Snack Crakers,Maliban Krisco Snack Crackers
-Harischandra String Hopper Flour White Rice 700g,Groceries,Groceries,✅ PASS,String Hopper Flour,String Hopper Flour,✅ PASS,80.0,Harischandra String Hopper Flour White Rice,Harischandra White Rice String Hopper Flour
-Nature Coriander Seed 100g,Groceries,Groceries,✅ PASS,Coriander Seeds,Coriander Seeds,✅ PASS,75.0,Coriander Seed,Coriander Seeds
-Sunsilk Thick & Long Shampoo 1l,Personal Care,Personal Care,✅ PASS,Sunsilk,Shampoo,❌ FAIL,75.0,Sunsilk Shampoo Thick and Long,Thick and Long Shampoo
-Dettol Soap Skincare 100g,Personal Care,Personal Care,✅ PASS,Soap,Soap,✅ PASS,100.0,,"Skincare Soap, Dettol Skincare Soap"
-Viana Dressing Scissor Vhso1 1pcs,Personal Care,Stationery,❌ FAIL,Scissor,Hairdressing Scissor,❌ FAIL,33.3,"Personal Care, Hair dressing scissor",Hairdressing Scissor
-David Garlic Murukku 100g,Groceries,Groceries,✅ PASS,Murukku,Murukku,✅ PASS,100.0,,Snacks
-Heinz Tuna Chunck In Sunflower Oil 160g,Groceries,Groceries,✅ PASS,Canned Tuna,Canned Tuna,✅ PASS,60.0,"Heinz Tuna Oil, Heinz Chunk Tuna With Sunflower Oil","Tuna Chunk In Oil, Tuna Chunks in Sunflower Oil, Tuna in Sunflower Oil, Heinz Tuna Chunks in Sunflower Oil, Tuna"
-Fondre Fat Spread 250g,Dairy,Groceries,❌ FAIL,Butter,Spreads,❌ FAIL,0.0,"Butter, Fondre Fat Spread, Dairy, Fat Spread","Groceries, Spread"
-Lanka Sumeda Anti Mosquito Incense Stick 30s,Household,Household,✅ PASS,Repellant Incense Stick,Incense Sticks,❌ FAIL,0.0,"Mosquito Repellant Incense Stick, HouseholdRepellant Incense Stick","Household, Incense Sticks, Citronella Incense Sticks, Lanka Sumeda Incense Stick"
-Close Up Tooth Paste Gel Pepermint 30g,Personal Care,Personal Care,✅ PASS,Toothpaste,Toothpaste,✅ PASS,100.0,,"Closeup Peppermint Toothpaste, Peppermint Toothpaste"
-Tiptop Plastic Commode Brush,Household,Household,✅ PASS,Commode Brush,Commode Brush,✅ PASS,75.0,Commode Scrub,
+Kelloggs Corn Flakes 250g,Groceries,,⬜ BLANK,Corn Flakes,,⬜ BLANK,0.0,"Kelloggs Corn Flakes, Kelloggs Original Corn Flakes, Cereal, Corn Flakes, Groceries",
+Md Original Green Chilli Sauce 400g,Groceries,,⬜ BLANK,Chilli Sauce,,⬜ BLANK,0.0,"Green Chilli Sauce, MD Green Chilli Sauce, Chilli Sauce, MD Sauce, Groceries, Sauce",
+Bonita Elegant Beauty Soap (Rose)-65g,Personal Care,,⬜ BLANK,Soap,,⬜ BLANK,0.0,"Bonita Beauty Elegant Soap, Personal Care, Bonita Soap, Beauty Soap, Soap, Rose Soap",
+Pork Bacon Ends 300g,Poultry and Meat,,⬜ BLANK,Pork,,⬜ BLANK,0.0,"Pork Bacon, Bacon Ends, Poultry and Meat, Pork, Pork Bacon Ends",
+Finagle Garlic Prawn Chiken Pizza 310g,Frozen Foods,,⬜ BLANK,Pizza,,⬜ BLANK,0.0,"Pizza, Finagle Garlic Prawn Chicken Pizza, Frozen Foods, Frozen Pizza, Finagle Chicken Pizza, Finagle Pizza, Chicken Pizza, Garlic Prawn Chicken Pizza",
+La Treats Tea Time Cookies Sugar Free 100g,Groceries,,⬜ BLANK,Cookies,,⬜ BLANK,0.0,"Groceries, La Treats Tea Time Sugar Free Cookies, La Treats Cookies, Cookies, La Treats Sugar Free Cookies, Sugar Free Cookies, Biscuit",
+Diva Lemon Fresh Detergent Soap 120g,Household,,⬜ BLANK,Detergent Soap,,⬜ BLANK,0.0,"Detergent, Household, Detergent Soap, Diva Detergent Soap",
+Marvel Baby Diapers (L) 4pcs,Baby Care,,⬜ BLANK,Baby Diapers,,⬜ BLANK,0.0,"Large Baby Diapers, Baby Diapers, Baby Care, Marvel Baby Large Baby Diapers, Marvel Baby Diapers",
+Eno Fruit Salt Orange Flavour Antacid Powder 5*5g,Pharmacy,,⬜ BLANK,Eno,,⬜ BLANK,0.0,"Eno, Antacid Powder, Eno Orange, Eno Orange Flavour Antacid Powder, Eno Antacid Powder, Pharmacy",
+Ritzbury Revello Chocolate Hazelnut 100g,Groceries,,⬜ BLANK,Chocolate,,⬜ BLANK,0.0,"Chocolate, Revello Chocolate, Hazelnut Chocolate, Ritzbury Chocolate, Milk Chocolate, Revello Hazelnut Chocolate, Groceries",
+Uswatte Chirpy Chips Cheese & Onion Flav,Groceries,,⬜ BLANK,Chirpy Chips,,⬜ BLANK,0.0,"Chirpy Potato Chips, Cheese and Onion Potato Chips, Potato Chips, Groceries, Uswatte Cheese and Onion Chirpy Chips, Chirpy Chips, Cheese and Onion Chirpy Potato Chips, Uswatte Cheese and Onion Potato Chips",
+Smak Nectar Mango 200ml,Groceries,,⬜ BLANK,Mango Nectar,,⬜ BLANK,0.0,"Smak Mango Nectar, Mango Nectar, Beverages, Smak Mango Drink, Groceries, Smak Drink",
+Natures Secrets Face Cream Vitamin E 50ml,Personal Care,,⬜ BLANK,Face Cream,,⬜ BLANK,0.0,"Face Cream, Natures Secrets Face Cream, Vitamin E Face Cream, Personal Care, Natures Secrets Vitamin E Face Cream, Cream",
+Hsp Food Container Square Hf015,Household,,⬜ BLANK,Food Container,,⬜ BLANK,0.0,"Food Container, HSP Clear Food Container, Clear Food Container, Household, Plastic Food Container",
+Mc Currie Crushed Chilli 100g,Groceries,,⬜ BLANK,Crushed Chillies,,⬜ BLANK,0.0,"Spices, McCurrie Crushed Chillies, Groceries, Crushed Chillies",
+Gold Queen Chicken Stock Powder,Groceries,,⬜ BLANK,Chicken Seasoning,,⬜ BLANK,0.0,"Gold Queen Seasoning, Spices, Stock Seasoning Chicken Flavoured Powder, Groceries, Chicken Seasoning, Gold Queen Stock Seasoning Chicken Flavoured Powder",
+Vendol Rose-jasmine Moisturizing Soap 90,Personal Care,,⬜ BLANK,Soap,,⬜ BLANK,0.0,"Moisturizing Soap, Personal Care, Vendol Rose Jasmine Moisturizing, Vendol Moisturizing Soap, Vendol Soap, Soap",
+FLORA TOILET ROLLS 4S,Household,,⬜ BLANK,Toliet Paper,,⬜ BLANK,0.0,"Flora Toilet Rolls, Toliet Paper, Toilet Rolls, Toilet Paper, Flora Toilet Paper, Household",
+Panasonic Led Bulb 15w Cool Day Pin 22,Household,,⬜ BLANK,Led Bulb,,⬜ BLANK,0.0,"Light Bulb, Panasonic Fifteen Watts Bulb, Panasonic Bulb, Cool Day Light Bulb, Fifteen Watts Bulb, Panasonic Cool Day Light Bulb, Light, Led Bulb, Household, Panasonic Fifteen Watts Cool Day Light Bulb",
+Natures Secrets Body Lotion Protecting Care With Avocado & Spf 200ml,Personal Care,,⬜ BLANK,Body Lotion,,⬜ BLANK,0.0,"Protecting Care Body Lotion, Natures Secrets Protecting Care Body Lotion, Personal Care, Natures Secrets Body Lotion, Body Lotion",
+Noas Snackers Cassava Chips Cheese & Chili,Groceries,,⬜ BLANK,Cassava Chips,,⬜ BLANK,0.0,"Cassava Chips, Noas Cassava Chips, Snacks, Groceries, Cheese and Chilli Cassava Chips, Noas Cheese and Chilli Cassava Chips",
+Pringles Original 165g,Groceries,,⬜ BLANK,Potato Chips,,⬜ BLANK,0.0,"Pringles Chips, Pringles Potato Chips, Chips, Potato Chips, Pringles Original Chips, Groceries, Pringles Original Potato Chips",
+Marvel Lady A/vera Ext. Wet Wipes 10pcs,Personal Care,,⬜ BLANK,Wet Wipes,,⬜ BLANK,0.0,"Wet Wipes, Marvel Wet Wipe, Personal Care, Marvel Lady Aloe Vera Wet Wipe, Aloe Vera Wet Wipe, Marvel Lady Wet Wipe",
+Wyke Farmsivys Vintage Reserve Cheddar Cheese 200g,Dairy,,⬜ BLANK,Cheese,,⬜ BLANK,0.0,"Cheddar Cheese, Ivys Vintage Reserve Cheddar Cheese, Dairy, Wyke Farms Cheddar Cheese, Wyke Farms Cheese, Cheese, Wyke Farms Ivys Vintage Reserve Cheddar Cheese",
+Prima Noodles Twist 400g,Groceries,,⬜ BLANK,Instant Noodles,,⬜ BLANK,0.0,"Prima Noodles Twist, Prima Noodles Twist Instant Noodles, Prima Instant Noodles, Prima Twist, Groceries, Prima Noodles Twist Family Pack, Instant Noodles",
+Sapumal Green Incense Sticks 20 Pcs,Household,,⬜ BLANK,Incense Sticks,,⬜ BLANK,0.0,"Household, Incense Sticks, Sapumal Incense Sticks, Sapumal Green Incense Sticks, Green Incense Sticks",
+We Clean Pink Soft Fabric Softener 1l,Household,,⬜ BLANK,Fabric Conditioner,,⬜ BLANK,0.0,"We Clean Fabric Conditioner, We Clean Fabric Softener, Fabric Conditioner, We Clean Fabric Wash, Household",
+Nature Cummin Seed 50g,Groceries,,⬜ BLANK,Cumin Seeds,,⬜ BLANK,0.0,"Spices, Nature Cumin Seeds, Groceries, Cumin Seeds",
+Kumarika Conditioner Thick & Strong 80ml,Personal Care,,⬜ BLANK,Conditioner,,⬜ BLANK,0.0,"Conditioner, Personal Care, Kumarika Thick and Long Conditioner, Thick and Long Conditioner, Kumarika Conditioner",
+Mccurrie Fenel Seed 100g,Groceries,,⬜ BLANK,Fennel Seeds,,⬜ BLANK,0.0,"Spices, Fennel Seeds, Groceries, McCurrie Fennel Seeds",
+Kist Fun Fruit Wood Apple 500ml,Groceries,,⬜ BLANK,Wood Apple Drink,,⬜ BLANK,0.0,"Kist Fun Fruit Wood Apple Nectar, Kist Fun Fruit Nectar, Beverages, Kist Nectar, Wood Apple Nectar, Groceries, Fruit Drink, Wood Apple Drink, Kist Wood Apple Nectar",
+Munchee Biscuit Kome Cumin 90g,Groceries,,⬜ BLANK,Biscuit,,⬜ BLANK,0.0,"Kome Rice Cracker, Cumin Rice Cracker, Groceries, Kome Cumin Rice Cracker, Munchee Kome Cumin Rice Cracker, Munchee Kome Rice Cracker, Rice Cracker, Biscuit",
+Grandor Dutch Cheese With Walnuts 200g,Dairy,,⬜ BLANK,Dutch Cheese,,⬜ BLANK,0.0,"Dairy, Cheese, Dutch Cheese, Grandor Dutch Cheese With Walnuts, Dutch Cheese With Walnuts, Grandor Cheese",
+Fan Pomegranate Nectar 1000ml,Groceries,,⬜ BLANK,Pomegranate Drink,,⬜ BLANK,0.0,"Fan Pomegranate Nectar, Pomegranate Nectar, Fruit Drink, Beverages, Pomegranate Drink, Groceries, Juice",
+Lipton Yellow Label-380g,Groceries,,⬜ BLANK,Tea Leaves,,⬜ BLANK,0.0,"Lipton Yellow Tea Leaves, Black Tea Leaves, Tea Leaves, Groceries, Lipton Tea Leaves, Lipton Yellow Label Black Tea Leaves",
+Suree Green Salad Dressing 295 Ml,Groceries,,⬜ BLANK,Salad Dressing,,⬜ BLANK,0.0,"Salad Dressing, Suree Green Salad Dressing, Green Salad Dressing, Salad Sauce, Groceries, Suree Dressing, Sauce",
+Viscafe Shong 3 In 1 Cardamom Tea 360 G,Groceries,,⬜ BLANK,Tea,,⬜ BLANK,0.0,"Cardamom Tea, Viscafe Tea, Viscafe Cardamom Tea, Tea, Groceries",
+Pillsbury Chakki Atta 1kg,Groceries,,⬜ BLANK,Atta Flour,,⬜ BLANK,0.0,"Atta Flour, Chakki Atta Flour, Pillsbury Flour, Pillsbury Chakki Atta Flour, Groceries, Flour, Pillsbury Atta Flour",
+Dum Dum Orange Flavoured Jelly 100g,Groceries,,⬜ BLANK,Jelly Powder,,⬜ BLANK,0.0,"Jelly Powder, Orange Jelly Powder, Dum Dum Jelly Powder, Jelly, Dum Dum Orange Jelly Powder, Groceries, Dum Dum Jelly",
+Swadeshi Kohomba Baby Milk 4 In 1,Personal Care,,⬜ BLANK,Baby Soap,,⬜ BLANK,0.0,"Baby Soap, Swadeshi Baby Soap, Personal Care, Swadeshi Khomba Baby Milk Soap, Khomba Baby Milk Soap, Khomba Baby Soap, Swadeshi Khomba Baby Soap, Baby Care, Soap",
+Pomegranates India 250g -300g,Fresh Produce,,⬜ BLANK,Pomegranate,,⬜ BLANK,0.0,"Fresh Produce, Delum, Pomegranate",
+Romantra Magnifique Perfumed Cologne Spray 100ml,Personal Care,,⬜ BLANK,Perfume,,⬜ BLANK,0.0,"Perfume, Romantra Magnifique Perfumed Cologne Spray, Cologne Spray, Personal Care, Perfumed Cologne, Romantra Cologne Spray, Romantra Perfumed Cologne Spray, Cologne",
+Sera Chilli Pieces 100g,Groceries,,⬜ BLANK,Chilli Pieces,,⬜ BLANK,0.0,"Spices, CBL Sera Chilli Pieces, Groceries, Chilli Pieces",
+Ritzbury Super Fine Milk Cooking Chocolate 400g,Groceries,,⬜ BLANK,Cooking Chocolate,,⬜ BLANK,0.0,"Chocolate, Ritzbury Super Fine Cooking Milk Chocolate, Ritzbury Cooking Chocolate, Ritzbury Chocolate, Baking Goods, Cooking Chocolate, Groceries",
+Haci Kadir Turkish Delight With Double Roasted Pistachio 250g,Groceries,,⬜ BLANK,Pistachio Nuts,,⬜ BLANK,0.0,"Pistachio Nuts, Haci Kadir Turkish Delight, Turkish Delight, Sweet Pistachios, Groceries",
+Finagle Multy Seed Low Gi Bread 200 G,Bakery,,⬜ BLANK,Multiseed Bread,,⬜ BLANK,0.0,"Finagle Multiseed Bread, Paan, Finagle Multi Seed Low Gi Bread, Bread, Bakery, Multiseed Bread, Finagle Bread",
+Sunquick Fruit Cocktail 700ml,Groceries,,⬜ BLANK,Fruit Cordial,,⬜ BLANK,0.0,"Fruit Cordial, Fruit Cocktail Cordial, Sunquick Fruit Cocktail Cordial, Fruit Cocktail, Sunquick Fruit Cocktail, Groceries",
+Super Chef Mushroom Whole 400g,Groceries,,⬜ BLANK,Mushroom,,⬜ BLANK,0.0,"Mushroom, Hatu, Whole Mushrooms, Super Chef Whole Mushroom, Groceries",
+Dettol Antiseptic Disinfectant 1l,Household,,⬜ BLANK,Disinfectant,,⬜ BLANK,0.0,"Disinfectant, Dettol Antiseptic Disinfectant, Dettol Disinfectant Liquid, Dettol Disinfectant, Disinfectant Liquid, Antiseptic Disinfectant, Household",
+Antibo Bath Loofah Oval,Personal Care,,⬜ BLANK,Loofah,,⬜ BLANK,0.0,"Antibo Loofah, Body Scrub, Personal Care, Bathroom Body Sponge, Body Sponge, Loofah",

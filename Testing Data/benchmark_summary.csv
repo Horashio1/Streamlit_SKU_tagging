@@ -1,12 +1,13 @@
 Approach,Model,Cat Acc (%),BT Acc (%),GK Recall (%),Blanks,Blank %,BT excl Blank (%),Embedding $,GPT $,Total $,Tokens,Time (s),Errors
-Azure GPT (All BTs),aoi-pickme-4o-driverReg-dev-001,90.0,80.0,72.77,0,0.0,80.0,0.0,0.32719,0.32719,57796,125.0,0
-Embedding + GPT,OR:openai/text-embedding-3-small + aoi-pickme-4o-driverReg-dev-001,90.0,78.0,74.92,0,0.0,78.0,0.0,0.26122,0.26122,45142,121.3,0
-OpenRouter: OpenRouter Free (Auto),openrouter/auto,56.0,52.0,44.5,15,30.0,74.29,0.0,0.0,0.0,50756,80.8,1
+Azure GPT (All BTs),aoi-pickme-4o-driverReg-dev-001,86.0,80.0,74.68,0,0.0,80.0,0.0,0.415195,0.415195,73371,278.9,0
+Embedding + GPT,OR:openai/text-embedding-3-small + aoi-pickme-4o-driverReg-dev-001,0.0,0.0,0.0,50,100.0,0.0,0.0,0.26122,0.26122,45142,121.3,0
+OpenRouter: OpenRouter Free (Auto),openrouter/auto,0.0,0.0,0.0,50,100.0,0.0,0.0,0.0,0.0,50756,80.8,1
 OR: Gemma 3 27B (Free),google/gemma-3-27b-it:free,0.0,0.0,0.0,50,100.0,0.0,0.0,0.0,0.0,0,150.9,4
 OR: Gemma 3 12B (Free),google/gemma-3-12b-it:free,0.0,0.0,0.0,50,100.0,0.0,0.0,0.0,0.0,0,35.1,4
 OR: Llama 3.3 70B (Free),meta-llama/llama-3.3-70b-instruct:free,0.0,0.0,0.0,50,100.0,0.0,0.0,0.0,0.0,0,150.5,4
 OR: Qwen 3 235B MoE (Free),qwen/qwen3-235b-a22b:free,0.0,0.0,0.0,50,100.0,0.0,0.0,0.0,0.0,0,2940.9,4
 OR: Mistral Small 3.1 24B (Free),mistralai/mistral-small-3.1-24b-instruct:free,0.0,0.0,0.0,50,100.0,0.0,0.0,0.0,0.0,0,2930.9,4
 OR: DeepSeek V3 (Free),deepseek/deepseek-chat-v3-0324:free,0.0,0.0,0.0,50,100.0,0.0,0.0,0.0,0.0,0,2934.5,4
-OR: Mistral Small 3.1 24B,mistralai/mistral-small-3.1-24b-instruct,86.0,68.0,61.01,2,4.0,70.83,0.0,2.14434,2.14434,71478,2055.4,1
-OR: DeepSeek V3 0324,deepseek/deepseek-chat-v3-0324,86.0,72.0,61.04,1,2.0,73.47,0.0,13.7352,13.7352,68676,473.2,1
+OR: Mistral Small 3.1 24B,mistralai/mistral-small-3.1-24b-instruct,0.0,0.0,0.0,50,100.0,0.0,0.0,2.14434,2.14434,71478,2055.4,1
+OR: DeepSeek V3 0324,deepseek/deepseek-chat-v3-0324,0.0,0.0,0.0,50,100.0,0.0,0.0,13.7352,13.7352,68676,473.2,1
+Gemini (All BTs),gemini-3.5-flash,86.0,80.0,85.7,0,0.0,80.0,0.0,0.414605,0.414605,130665,505.9,0

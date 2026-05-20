@@ -8,7 +8,7 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 import streamlit.components.v1 as components
-from utils import gpt_call, gpt_call_with_usage, category_prompt, basictype_prompt, generic_keyword_prompt, batch_generic_keyword_prompt, batch_category_prompt, batch_basictype_prompt, batch_basictype_category_prompt, batch_embedding_bt_category_prompt
+from utils import gpt_call, gpt_call_with_usage, gemini_call_with_usage, category_prompt, basictype_prompt, generic_keyword_prompt, batch_generic_keyword_prompt, batch_category_prompt, batch_basictype_prompt, batch_basictype_category_prompt, batch_embedding_bt_category_prompt
 from embedding_utils import build_bt_embeddings, get_sku_embeddings, find_similar_basic_types_batch, load_cache, EMBEDDING_BATCH_SIZE
 
 # Load environment variables from .env file
@@ -27,6 +27,10 @@ api_version = os.getenv('AZURE_OPENAI_API_VERSION', '2024-02-01')
 azure_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
 deployment_name = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')
 embedding_deployment_name = os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT', '')
+
+# Google Gemini configuration (loaded from environment variables)
+gemini_api_key = os.getenv('GEMINI_API_KEY', '')
+GEMINI_MODEL = "gemini-3.1-flash-lite"  # Model for Gemini tagging
 
 # Validate required environment variables
 if not all([open_api_key, azure_endpoint, deployment_name]):
@@ -695,23 +699,23 @@ if st.session_state.sku_data:
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🔍 Find Basic Type and Category", disabled=not all_files_loaded, use_container_width=True):
+        azure_disabled = not all_files_loaded
+        if st.button("🔵 Tag with Azure GPT", disabled=azure_disabled, use_container_width=True, help="Find BT, Category, and Generic Keywords using Azure OpenAI"):
             if all_files_loaded:
-                with st.spinner("Finding basic types and categories in batches..."):
+                # ========== PHASE 1: Find Basic Type and Category ==========
+                with st.spinner("Phase 1/2: Finding basic types and categories..."):
                     # Get ALL unique basic types from BT_CT_mappings (first column)
                     all_basic_types = st.session_state.mapping_cat_bt_df.iloc[:, 0].unique().tolist()
                     
                     # Build BT to Category mapping dictionary
-                    # Note: A basic type can be in multiple categories
                     bt_to_category = {}
                     for _, row in st.session_state.mapping_cat_bt_df.iterrows():
-                        bt = row.iloc[0]  # Basic Type (first column)
-                        cat = row.iloc[1]  # Category (second column)
+                        bt = row.iloc[0]
+                        cat = row.iloc[1]
                         bt_to_category[bt] = cat
                     
                     total_skus = len(st.session_state.sku_data)
-                    
-                    progress_bar = st.progress(0)
+                    progress_bar = st.progress(0, text="Phase 1: Finding BT & Categories...")
                     processed = 0
                     batch_usage_stats = []
                     
@@ -719,12 +723,12 @@ if st.session_state.sku_data:
                     st.session_state.suggested_new_bts = {}
                     st.session_state.needs_category_review = set()
                     
-                    # Process in batches
+                    # Process BT+Category in batches
                     for batch_start in range(0, total_skus, BT_CATEGORY_BATCH_SIZE):
                         batch_end = min(batch_start + BT_CATEGORY_BATCH_SIZE, total_skus)
                         batch_skus = [item['sku_name'] for item in st.session_state.sku_data[batch_start:batch_end]]
                         
-                        print(f"\n>>> Processing BT & Category Batch: SKUs {batch_start+1}-{batch_end} ({len(batch_skus)} items)")
+                        print(f"\n>>> [Azure] Processing BT & Category Batch: SKUs {batch_start+1}-{batch_end}")
                         
                         try:
                             result, usage_stats = gpt_call_with_usage(
@@ -732,35 +736,26 @@ if st.session_state.sku_data:
                                 batch_basictype_category_prompt(batch_skus, all_basic_types, bt_to_category)
                             )
                             
-                            # Track usage stats
-                            usage_stats['operation'] = 'Find BT and CT'
+                            usage_stats['operation'] = 'Azure: Find BT and CT'
                             usage_stats['batch'] = f"SKUs {batch_start+1}-{batch_end}"
                             batch_usage_stats.append(usage_stats)
                             st.session_state.api_usage_stats.append(usage_stats)
                             st.session_state.total_session_cost += usage_stats['total_cost']
                             st.session_state.total_session_tokens += usage_stats['total_tokens']
                             
-                            # Log to Google Sheets
                             log_gpt_cost_to_sheets(usage_stats, {
                                 'sku_count': len(batch_skus),
-                                'notes': f'Batch processing {len(batch_skus)} SKUs for BT and Category assignment'
+                                'notes': f'[Azure] Batch BT+CT for {len(batch_skus)} SKUs'
                             })
                             
-                            # Clean result to remove markdown code fences
                             result_clean = result.strip()
                             if result_clean.startswith('```'):
                                 lines = result_clean.split('\n')
                                 result_clean = '\n'.join([l for l in lines if not l.startswith('```')])
                             
                             batch_results = json.loads(result_clean)['results']
+                            results_by_sku = {r['sku']: r for r in batch_results}
                             
-                            # Build a lookup from sku_name -> result for this batch
-                            results_by_sku = {}
-                            for result_item in batch_results:
-                                sku_name = result_item['sku']
-                                results_by_sku[sku_name] = result_item
-                            
-                            # Update ALL SKUs in the batch (don't break on first match — handles duplicates)
                             for idx in range(batch_start, batch_end):
                                 sku_name = st.session_state.sku_data[idx]['sku_name']
                                 if sku_name not in results_by_sku:
@@ -768,7 +763,6 @@ if st.session_state.sku_data:
                                 
                                 result_item = results_by_sku[sku_name]
                                 basic_type = result_item['basic_type']
-                                # Get category from result (now included in LLM response)
                                 category = result_item.get('category', bt_to_category.get(basic_type, ''))
                                 is_new_bt = result_item.get('is_new_bt', False)
                                 suggested_bt = result_item.get('suggested_bt', None)
@@ -776,197 +770,322 @@ if st.session_state.sku_data:
                                 st.session_state.sku_data[idx]['basic_type'] = basic_type
                                 st.session_state.sku_data[idx]['category'] = category
                                 
-                                # Flag if this basic type is mapped to multiple categories
                                 if basic_type in st.session_state.multi_cat_bts:
                                     st.session_state.needs_category_review.add(idx)
-                                    print(f"[REVIEW] '{sku_name}' has multi-category BT '{basic_type}' -> categories: {st.session_state.multi_cat_bts[basic_type]}")
                                 
-                                # Handle suggested new basic type
                                 if is_new_bt and suggested_bt:
-                                    # GPT may put the new name in basic_type — verify it's actually existing
                                     all_bt_set = set(all_basic_types)
                                     closest_existing = basic_type if basic_type in all_bt_set else ''
-                                    
-                                    # If GPT put the suggested name in basic_type (not existing),
-                                    # find the best existing BT from the same category
                                     if not closest_existing and category:
                                         cat_bts = [bt for bt, cat in bt_to_category.items() if cat == category]
                                         if cat_bts:
-                                            # Simple best match: find existing BT most similar to SKU name
                                             sku_lower = sku_name.lower()
                                             scored = [(bt, sum(w in bt.lower() for w in sku_lower.split())) for bt in cat_bts]
                                             scored.sort(key=lambda x: -x[1])
                                             closest_existing = scored[0][0]
-                                    
-                                    # Set the closest existing BT in the dropdown
                                     st.session_state.sku_data[idx]['basic_type'] = closest_existing
-                                    
                                     st.session_state.suggested_new_bts[idx] = {
-                                        'suggested_bt': suggested_bt,
-                                        'category': category,
-                                        'sku_name': sku_name,
-                                        'closest_existing_bt': closest_existing
+                                        'suggested_bt': suggested_bt, 'category': category,
+                                        'sku_name': sku_name, 'closest_existing_bt': closest_existing
                                     }
-                                    print(f"[OK] Set '{sku_name}' -> BT: {closest_existing or '(none)'}, Category: {category} (Suggested NEW: {suggested_bt})")
-                                else:
-                                    print(f"[OK] Set '{sku_name}' -> BT: {basic_type}, Category: {category}")
                             
                             processed = batch_end
-                            
                         except Exception as e:
-                            print(f"[ERROR] Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
-                            st.error(f"Error processing batch {batch_start+1}-{batch_end}: {str(e)}")
+                            print(f"[ERROR] Azure BT+Cat batch error: {str(e)}")
+                            st.error(f"Error in BT+Cat batch {batch_start+1}-{batch_end}: {str(e)}")
                         
-                        progress_bar.progress(processed / total_skus)
-                    
-                    progress_bar.empty()
-                    
-                    # Show usage summary for this operation
-                    total_tokens = sum(s['total_tokens'] for s in batch_usage_stats)
-                    total_cost = sum(s['total_cost'] for s in batch_usage_stats)
-                    
-                    # Show count of suggested new BTs
-                    new_bt_count = len(st.session_state.suggested_new_bts)
-                    if new_bt_count > 0:
-                        st.success(f"✅ BT & Categories found for {processed} SKUs! | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
-                        st.info(f"💡 {new_bt_count} SKUs have suggested new basic types. See suggestions below each SKU in the table.")
-                    else:
-                        st.success(f"✅ BT & Categories found for {processed} SKUs! | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
-                    st.rerun()
-
-    with col2:
-        if st.button("🏷️ Find Generic Keywords", disabled=not all_files_loaded, use_container_width=True):
-            if all_files_loaded:
-                with st.spinner("Finding generic keywords..."):
-                    progress_bar = st.progress(0)
-                    batch_usage_stats = []
-                    processed_count = 0
-                    
-                    # Group SKUs by (basic_type, category) to batch GPT calls
+                        progress_bar.progress(processed / total_skus, text=f"Phase 1: {processed}/{total_skus} SKUs...")
+                
+                # ========== PHASE 2: Find Generic Keywords ==========
+                with st.spinner("Phase 2/2: Finding generic keywords..."):
                     from collections import defaultdict
-                    bt_groups = defaultdict(list)  # (bt, cat) -> [(idx, item), ...]
-                    
+                    bt_groups = defaultdict(list)
                     for idx, item in enumerate(st.session_state.sku_data):
                         if item['basic_type']:
                             bt_groups[(item['basic_type'], item['category'])].append((idx, item))
                     
                     total_groups = len(bt_groups)
                     groups_done = 0
+                    gk_processed = 0
                     
                     for (basic_type, category), group_items in bt_groups.items():
                         try:
-                            # Get generic keywords for this basic type (PRIMARY)
                             gk_list = st.session_state.mapping_bt_gk_df.loc[
                                 st.session_state.mapping_bt_gk_df.iloc[:, 0] == basic_type,
                                 st.session_state.mapping_bt_gk_df.columns[1]
                             ].tolist()
                             
-                            if not gk_list or len(gk_list) == 0:
+                            if not gk_list:
                                 groups_done += 1
-                                progress_bar.progress(groups_done / total_groups)
                                 continue
-                            
-                            # Flatten if nested list
                             if isinstance(gk_list[0], list):
                                 gk_list = gk_list[0]
                             
                             sku_names = [item['sku_name'] for _, item in group_items]
                             group_size = len(sku_names)
                             
-                            print(f"\n>>> Batch GK: {group_size} SKUs for BT='{basic_type}', Cat='{category}'")
-                            
                             if group_size == 1:
-                                # Single SKU — use original prompt for best accuracy
                                 idx, item = group_items[0]
                                 result, usage_stats = gpt_call_with_usage(
                                     open_api_key, api_version, azure_endpoint, deployment_name,
                                     generic_keyword_prompt(item['sku_name'], category, basic_type, gk_list)
                                 )
-                                usage_stats['operation'] = 'Find Generic Keywords'
+                                usage_stats['operation'] = 'Azure: Find GK'
                                 usage_stats['batch'] = f"SKU: {item['sku_name'][:30]}..."
-                                batch_usage_stats.append(usage_stats)
-                                st.session_state.api_usage_stats.append(usage_stats)
-                                st.session_state.total_session_cost += usage_stats['total_cost']
-                                st.session_state.total_session_tokens += usage_stats['total_tokens']
-                                
-                                log_gpt_cost_to_sheets(usage_stats, {
-                                    'sku_count': 1,
-                                    'notes': f'GK for SKU: {item["sku_name"][:50]}'
-                                })
-                                
-                                result_clean = result.strip()
-                                if result_clean.startswith('```'):
-                                    lines = result_clean.split('\n')
-                                    result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
-                                
-                                parsed = json.loads(result_clean)
-                                gk_response = parsed['selected_generic_keywords']
-                                if gk_response and isinstance(gk_response, list) and isinstance(gk_response[0], dict):
-                                    generic_keywords = [kw['keyword'] for kw in gk_response if 'keyword' in kw]
-                                else:
-                                    generic_keywords = gk_response if isinstance(gk_response, list) else []
-                                
-                                st.session_state.sku_data[idx]['generic_keywords'] = generic_keywords
-                                st.session_state[f"tags_{idx}"] = generic_keywords
-                                processed_count += 1
-                                print(f"  [OK] {item['sku_name'][:40]} → {generic_keywords}")
                             else:
-                                # Multiple SKUs — batch prompt
                                 result, usage_stats = gpt_call_with_usage(
                                     open_api_key, api_version, azure_endpoint, deployment_name,
                                     batch_generic_keyword_prompt(sku_names, category, basic_type, gk_list)
                                 )
-                                usage_stats['operation'] = 'Find Generic Keywords (batch)'
+                                usage_stats['operation'] = 'Azure: Find GK (batch)'
                                 usage_stats['batch'] = f"BT: {basic_type} ({group_size} SKUs)"
-                                batch_usage_stats.append(usage_stats)
-                                st.session_state.api_usage_stats.append(usage_stats)
-                                st.session_state.total_session_cost += usage_stats['total_cost']
-                                st.session_state.total_session_tokens += usage_stats['total_tokens']
-                                
-                                log_gpt_cost_to_sheets(usage_stats, {
-                                    'sku_count': group_size,
-                                    'notes': f'Batch GK for BT: {basic_type} ({group_size} SKUs)'
-                                })
-                                
-                                result_clean = result.strip()
-                                if result_clean.startswith('```'):
-                                    lines = result_clean.split('\n')
-                                    result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
-                                
-                                parsed = json.loads(result_clean)
+                            
+                            batch_usage_stats.append(usage_stats)
+                            st.session_state.api_usage_stats.append(usage_stats)
+                            st.session_state.total_session_cost += usage_stats['total_cost']
+                            st.session_state.total_session_tokens += usage_stats['total_tokens']
+                            
+                            log_gpt_cost_to_sheets(usage_stats, {
+                                'sku_count': group_size,
+                                'notes': f'[Azure] GK for BT: {basic_type}'
+                            })
+                            
+                            result_clean = result.strip()
+                            if result_clean.startswith('```'):
+                                lines = result_clean.split('\n')
+                                result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
+                            
+                            parsed = json.loads(result_clean)
+                            
+                            if group_size == 1:
+                                gk_response = parsed.get('selected_generic_keywords', [])
+                                if gk_response and isinstance(gk_response[0], dict):
+                                    generic_keywords = [kw['keyword'] for kw in gk_response if 'keyword' in kw]
+                                else:
+                                    generic_keywords = gk_response if isinstance(gk_response, list) else []
+                                st.session_state.sku_data[idx]['generic_keywords'] = generic_keywords
+                                st.session_state[f"tags_{idx}"] = generic_keywords
+                                gk_processed += 1
+                            else:
                                 results_list = parsed.get('results', [])
-                                
-                                # Build lookup by SKU name for matching
                                 results_by_name = {r['sku_name']: r.get('selected_generic_keywords', []) for r in results_list}
-                                
                                 for idx, item in group_items:
                                     gk_response = results_by_name.get(item['sku_name'], [])
-                                    # Handle confidence-level format
-                                    if gk_response and isinstance(gk_response, list) and len(gk_response) > 0 and isinstance(gk_response[0], dict):
+                                    if gk_response and isinstance(gk_response[0], dict):
                                         generic_keywords = [kw['keyword'] for kw in gk_response if 'keyword' in kw]
                                     else:
                                         generic_keywords = gk_response if isinstance(gk_response, list) else []
-                                    
                                     st.session_state.sku_data[idx]['generic_keywords'] = generic_keywords
                                     st.session_state[f"tags_{idx}"] = generic_keywords
-                                    processed_count += 1
-                                    print(f"  [OK] {item['sku_name'][:40]} → {generic_keywords}")
+                                    gk_processed += 1
                         
                         except Exception as e:
-                            sku_list_str = ', '.join(item['sku_name'][:25] for _, item in group_items)
-                            print(f"[ERROR] Batch GK error for BT='{basic_type}': {str(e)}")
-                            st.error(f"Error processing BT '{basic_type}' ({len(group_items)} SKUs): {str(e)}")
+                            print(f"[ERROR] Azure GK batch error for BT='{basic_type}': {str(e)}")
                         
                         groups_done += 1
-                        progress_bar.progress(groups_done / total_groups)
+                        progress_bar.progress(groups_done / total_groups, text=f"Phase 2: {groups_done}/{total_groups} BT groups...")
                     
                     progress_bar.empty()
+                
+                # Show final summary
+                total_tokens = sum(s['total_tokens'] for s in batch_usage_stats)
+                total_cost = sum(s['total_cost'] for s in batch_usage_stats)
+                new_bt_count = len(st.session_state.suggested_new_bts)
+                
+                st.success(f"✅ Azure tagging complete! {processed} SKUs tagged | {gk_processed} GKs assigned | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
+                if new_bt_count > 0:
+                    st.info(f"💡 {new_bt_count} SKUs have suggested new basic types.")
+                st.rerun()
+    
+    with col2:
+        gemini_disabled = not all_files_loaded or not gemini_api_key
+        gemini_help = "Find BT, Category, and Generic Keywords using Google Gemini" if gemini_api_key else "Set GEMINI_API_KEY in .env to enable"
+        if st.button("🟢 Tag with Gemini", disabled=gemini_disabled, use_container_width=True, help=gemini_help):
+            if all_files_loaded and gemini_api_key:
+                # ========== PHASE 1: Find Basic Type and Category with Gemini ==========
+                with st.spinner("Phase 1/2: Finding basic types and categories (Gemini)..."):
+                    all_basic_types = st.session_state.mapping_cat_bt_df.iloc[:, 0].unique().tolist()
                     
-                    # Show usage summary for this operation
-                    total_tokens = sum(s['total_tokens'] for s in batch_usage_stats)
-                    total_cost = sum(s['total_cost'] for s in batch_usage_stats)
-                    st.success(f"✅ Generic keywords found for {processed_count} SKUs in {total_groups} API calls! | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
-                    st.rerun()
+                    bt_to_category = {}
+                    for _, row in st.session_state.mapping_cat_bt_df.iterrows():
+                        bt = row.iloc[0]
+                        cat = row.iloc[1]
+                        bt_to_category[bt] = cat
+                    
+                    total_skus = len(st.session_state.sku_data)
+                    progress_bar = st.progress(0, text="Phase 1: Finding BT & Categories (Gemini)...")
+                    processed = 0
+                    batch_usage_stats = []
+                    
+                    st.session_state.suggested_new_bts = {}
+                    st.session_state.needs_category_review = set()
+                    
+                    for batch_start in range(0, total_skus, BT_CATEGORY_BATCH_SIZE):
+                        batch_end = min(batch_start + BT_CATEGORY_BATCH_SIZE, total_skus)
+                        batch_skus = [item['sku_name'] for item in st.session_state.sku_data[batch_start:batch_end]]
+                        
+                        print(f"\n>>> [Gemini] Processing BT & Category Batch: SKUs {batch_start+1}-{batch_end}")
+                        
+                        try:
+                            prompt = batch_basictype_category_prompt(batch_skus, all_basic_types, bt_to_category)
+                            result, usage_stats = gemini_call_with_usage(gemini_api_key, prompt, GEMINI_MODEL)
+                            
+                            usage_stats['operation'] = 'Gemini: Find BT and CT'
+                            usage_stats['batch'] = f"SKUs {batch_start+1}-{batch_end}"
+                            batch_usage_stats.append(usage_stats)
+                            st.session_state.api_usage_stats.append(usage_stats)
+                            st.session_state.total_session_cost += usage_stats['total_cost']
+                            st.session_state.total_session_tokens += usage_stats['total_tokens']
+                            
+                            log_gpt_cost_to_sheets(usage_stats, {
+                                'sku_count': len(batch_skus),
+                                'notes': f'[Gemini/{GEMINI_MODEL}] Batch BT+CT for {len(batch_skus)} SKUs'
+                            })
+                            
+                            result_clean = result.strip()
+                            if result_clean.startswith('```'):
+                                lines = result_clean.split('\n')
+                                result_clean = '\n'.join([l for l in lines if not l.startswith('```')])
+                            
+                            batch_results = json.loads(result_clean)['results']
+                            results_by_sku = {r['sku']: r for r in batch_results}
+                            
+                            for idx in range(batch_start, batch_end):
+                                sku_name = st.session_state.sku_data[idx]['sku_name']
+                                if sku_name not in results_by_sku:
+                                    continue
+                                
+                                result_item = results_by_sku[sku_name]
+                                basic_type = result_item['basic_type']
+                                category = result_item.get('category', bt_to_category.get(basic_type, ''))
+                                is_new_bt = result_item.get('is_new_bt', False)
+                                suggested_bt = result_item.get('suggested_bt', None)
+                                
+                                st.session_state.sku_data[idx]['basic_type'] = basic_type
+                                st.session_state.sku_data[idx]['category'] = category
+                                
+                                if basic_type in st.session_state.multi_cat_bts:
+                                    st.session_state.needs_category_review.add(idx)
+                                
+                                if is_new_bt and suggested_bt:
+                                    all_bt_set = set(all_basic_types)
+                                    closest_existing = basic_type if basic_type in all_bt_set else ''
+                                    if not closest_existing and category:
+                                        cat_bts = [bt for bt, cat in bt_to_category.items() if cat == category]
+                                        if cat_bts:
+                                            sku_lower = sku_name.lower()
+                                            scored = [(bt, sum(w in bt.lower() for w in sku_lower.split())) for bt in cat_bts]
+                                            scored.sort(key=lambda x: -x[1])
+                                            closest_existing = scored[0][0]
+                                    st.session_state.sku_data[idx]['basic_type'] = closest_existing
+                                    st.session_state.suggested_new_bts[idx] = {
+                                        'suggested_bt': suggested_bt, 'category': category,
+                                        'sku_name': sku_name, 'closest_existing_bt': closest_existing
+                                    }
+                            
+                            processed = batch_end
+                        except Exception as e:
+                            print(f"[ERROR] Gemini BT+Cat batch error: {str(e)}")
+                            st.error(f"Error in Gemini BT+Cat batch {batch_start+1}-{batch_end}: {str(e)}")
+                        
+                        progress_bar.progress(processed / total_skus, text=f"Phase 1: {processed}/{total_skus} SKUs (Gemini)...")
+                
+                # ========== PHASE 2: Find Generic Keywords with Gemini ==========
+                with st.spinner("Phase 2/2: Finding generic keywords (Gemini)..."):
+                    from collections import defaultdict
+                    bt_groups = defaultdict(list)
+                    for idx, item in enumerate(st.session_state.sku_data):
+                        if item['basic_type']:
+                            bt_groups[(item['basic_type'], item['category'])].append((idx, item))
+                    
+                    total_groups = len(bt_groups)
+                    groups_done = 0
+                    gk_processed = 0
+                    
+                    for (basic_type, category), group_items in bt_groups.items():
+                        try:
+                            gk_list = st.session_state.mapping_bt_gk_df.loc[
+                                st.session_state.mapping_bt_gk_df.iloc[:, 0] == basic_type,
+                                st.session_state.mapping_bt_gk_df.columns[1]
+                            ].tolist()
+                            
+                            if not gk_list:
+                                groups_done += 1
+                                continue
+                            if isinstance(gk_list[0], list):
+                                gk_list = gk_list[0]
+                            
+                            sku_names = [item['sku_name'] for _, item in group_items]
+                            group_size = len(sku_names)
+                            
+                            if group_size == 1:
+                                idx, item = group_items[0]
+                                prompt = generic_keyword_prompt(item['sku_name'], category, basic_type, gk_list)
+                                result, usage_stats = gemini_call_with_usage(gemini_api_key, prompt, GEMINI_MODEL)
+                                usage_stats['operation'] = 'Gemini: Find GK'
+                                usage_stats['batch'] = f"SKU: {item['sku_name'][:30]}..."
+                            else:
+                                prompt = batch_generic_keyword_prompt(sku_names, category, basic_type, gk_list)
+                                result, usage_stats = gemini_call_with_usage(gemini_api_key, prompt, GEMINI_MODEL)
+                                usage_stats['operation'] = 'Gemini: Find GK (batch)'
+                                usage_stats['batch'] = f"BT: {basic_type} ({group_size} SKUs)"
+                            
+                            batch_usage_stats.append(usage_stats)
+                            st.session_state.api_usage_stats.append(usage_stats)
+                            st.session_state.total_session_cost += usage_stats['total_cost']
+                            st.session_state.total_session_tokens += usage_stats['total_tokens']
+                            
+                            log_gpt_cost_to_sheets(usage_stats, {
+                                'sku_count': group_size,
+                                'notes': f'[Gemini/{GEMINI_MODEL}] GK for BT: {basic_type}'
+                            })
+                            
+                            result_clean = result.strip()
+                            if result_clean.startswith('```'):
+                                lines = result_clean.split('\n')
+                                result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
+                            
+                            parsed = json.loads(result_clean)
+                            
+                            if group_size == 1:
+                                gk_response = parsed.get('selected_generic_keywords', [])
+                                if gk_response and isinstance(gk_response[0], dict):
+                                    generic_keywords = [kw['keyword'] for kw in gk_response if 'keyword' in kw]
+                                else:
+                                    generic_keywords = gk_response if isinstance(gk_response, list) else []
+                                st.session_state.sku_data[idx]['generic_keywords'] = generic_keywords
+                                st.session_state[f"tags_{idx}"] = generic_keywords
+                                gk_processed += 1
+                            else:
+                                results_list = parsed.get('results', [])
+                                results_by_name = {r['sku_name']: r.get('selected_generic_keywords', []) for r in results_list}
+                                for idx, item in group_items:
+                                    gk_response = results_by_name.get(item['sku_name'], [])
+                                    if gk_response and isinstance(gk_response[0], dict):
+                                        generic_keywords = [kw['keyword'] for kw in gk_response if 'keyword' in kw]
+                                    else:
+                                        generic_keywords = gk_response if isinstance(gk_response, list) else []
+                                    st.session_state.sku_data[idx]['generic_keywords'] = generic_keywords
+                                    st.session_state[f"tags_{idx}"] = generic_keywords
+                                    gk_processed += 1
+                        
+                        except Exception as e:
+                            print(f"[ERROR] Gemini GK batch error for BT='{basic_type}': {str(e)}")
+                        
+                        groups_done += 1
+                        progress_bar.progress(groups_done / total_groups, text=f"Phase 2: {groups_done}/{total_groups} BT groups (Gemini)...")
+                    
+                    progress_bar.empty()
+                
+                # Show final summary
+                total_tokens = sum(s['total_tokens'] for s in batch_usage_stats)
+                total_cost = sum(s['total_cost'] for s in batch_usage_stats)
+                new_bt_count = len(st.session_state.suggested_new_bts)
+                
+                st.success(f"✅ Gemini tagging complete! {processed} SKUs tagged | {gk_processed} GKs assigned | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}")
+                if new_bt_count > 0:
+                    st.info(f"💡 {new_bt_count} SKUs have suggested new basic types.")
+                st.rerun()
     
     # Display and edit table
     st.header("📊 SKU Tagging Table")

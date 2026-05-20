@@ -1,0 +1,51 @@
+SKU Name,Expected Category,Predicted Category,Category Result,Expected Basic Type,Predicted Basic Type,BT Result,GK Recall (%),Missing GKs,Extra GKs
+Kelloggs Corn Flakes 250g,Groceries,Groceries,✅ PASS,Corn Flakes,Corn Flakes,✅ PASS,100,,
+Md Original Green Chilli Sauce 400g,Groceries,Groceries,✅ PASS,Chilli Sauce,Chilli Sauce,✅ PASS,100,,"Hot Sauce, MD Chilli Sauce"
+Bonita Elegant Beauty Soap (Rose)-65g,Personal Care,Personal Care,✅ PASS,Soap,Soap,✅ PASS,100,,
+Pork Bacon Ends 300g,Poultry and Meat,Frozen Foods,❌ FAIL,Pork,Bacon,❌ FAIL,0,"Pork Bacon, Pork, Pork Bacon Ends, Bacon Ends, Poultry and Meat","Bacon, Frozen Foods"
+Finagle Garlic Prawn Chiken Pizza 310g,Frozen Foods,Frozen Foods,✅ PASS,Pizza,Pizza,✅ PASS,100,,
+La Treats Tea Time Cookies Sugar Free 100g,Groceries,Groceries,✅ PASS,Cookies,Cookies,✅ PASS,100,,
+Diva Lemon Fresh Detergent Soap 120g,Household,Household,✅ PASS,Detergent Soap,Detergent Soap,✅ PASS,100,,Laundry Soap
+Marvel Baby Diapers (L) 4pcs,Baby Care,Baby Care,✅ PASS,Baby Diapers,Baby Diapers,✅ PASS,100,,Marvel Large Baby Diapers
+Eno Fruit Salt Orange Flavour Antacid Powder 5*5g,Pharmacy,Pharmacy,✅ PASS,Eno,Eno,✅ PASS,100,,
+Ritzbury Revello Chocolate Hazelnut 100g,Groceries,Groceries,✅ PASS,Chocolate,Chocolate Bar,❌ FAIL,14.3,"Chocolate, Hazelnut Chocolate, Milk Chocolate, Revello Chocolate, Revello Hazelnut Chocolate, Ritzbury Chocolate",Chocolate Bar
+Uswatte Chirpy Chips Cheese & Onion Flav,Groceries,Groceries,✅ PASS,Chirpy Chips,Chirpy Chips,✅ PASS,100,,
+Smak Nectar Mango 200ml,Groceries,Groceries,✅ PASS,Mango Nectar,Mango Nectar,✅ PASS,100,,
+Natures Secrets Face Cream Vitamin E 50ml,Personal Care,Personal Care,✅ PASS,Face Cream,Face Cream,✅ PASS,100,,
+Hsp Food Container Square Hf015,Household,Household,✅ PASS,Food Container,Food Container,✅ PASS,100,,
+Mc Currie Crushed Chilli 100g,Groceries,Groceries,✅ PASS,Crushed Chillies,Crushed Chillies,✅ PASS,100,,
+Gold Queen Chicken Stock Powder,Groceries,Groceries,✅ PASS,Chicken Seasoning,Chicken Seasoning,✅ PASS,100,,
+Vendol Rose-jasmine Moisturizing Soap 90,Personal Care,Household,❌ FAIL,Soap,Soap,✅ PASS,83.3,Vendol Rose Jasmine Moisturizing,"Jasmine Soap, Household, Vendol Rose-jasmine Moisturizing, Rose Soap"
+FLORA TOILET ROLLS 4S,Household,Household,✅ PASS,Toliet Paper,Toilet Paper,❌ FAIL,83.3,Toliet Paper,"Toilet Tissue, Toilet Tissue Rolls, Tissue Rolls"
+Panasonic Led Bulb 15w Cool Day Pin 22,Household,Household,✅ PASS,Led Bulb,Led Bulb,✅ PASS,100,,
+Natures Secrets Body Lotion Protecting Care With Avocado & Spf 200ml,Personal Care,Personal Care,✅ PASS,Body Lotion,Body Lotion,✅ PASS,100,,"Avocado Body Lotion, Sunscreen"
+Noas Snackers Cassava Chips Cheese & Chili,Groceries,Groceries,✅ PASS,Cassava Chips,Cassava Chips,✅ PASS,100,,"Chips, Noas Snackers Cassava Chips, Cassava Chips Snackers"
+Pringles Original 165g,Groceries,Groceries,✅ PASS,Potato Chips,Potato Chips,✅ PASS,100,,"Snacks, Original Potato Chips"
+Marvel Lady A/vera Ext. Wet Wipes 10pcs,Personal Care,Household,❌ FAIL,Wet Wipes,Wet Wipes,✅ PASS,100,,Household
+Wyke Farmsivys Vintage Reserve Cheddar Cheese 200g,Dairy,Dairy,✅ PASS,Cheese,Cheese,✅ PASS,100,,
+Prima Noodles Twist 400g,Groceries,Groceries,✅ PASS,Instant Noodles,Instant Noodles,✅ PASS,100,,"Prima Twist Special Fine Noodles, Prima Noodles, Prima Noodles Twist Special Fine Instant Noodles, Prima Family Pack Instant Noodles"
+Sapumal Green Incense Sticks 20 Pcs,Household,Household,✅ PASS,Incense Sticks,Incense Sticks,✅ PASS,100,,
+We Clean Pink Soft Fabric Softener 1l,Household,Household,✅ PASS,Fabric Conditioner,Fabric Conditioner,✅ PASS,80,We Clean Fabric Wash,
+Nature Cummin Seed 50g,Groceries,Groceries,✅ PASS,Cumin Seeds,Cumin Seeds,✅ PASS,100,,
+Kumarika Conditioner Thick & Strong 80ml,Personal Care,Personal Care,✅ PASS,Conditioner,Conditioner,✅ PASS,60,"Thick and Long Conditioner, Kumarika Thick and Long Conditioner",Strengthening Conditioner
+Mccurrie Fenel Seed 100g,Groceries,Groceries,✅ PASS,Fennel Seeds,Fennel Seeds,✅ PASS,100,,
+Kist Fun Fruit Wood Apple 500ml,Groceries,Groceries,✅ PASS,Wood Apple Drink,Wood Apple Drink,✅ PASS,100,,"Kist Juice, Kist Wood Apple Drink, Juice"
+Munchee Biscuit Kome Cumin 90g,Groceries,Bakery,❌ FAIL,Biscuit,Biscuit,✅ PASS,100,,"Munchee Rice Cracker, Bakery, Munchee Biscuit"
+Grandor Dutch Cheese With Walnuts 200g,Dairy,Dairy,✅ PASS,Dutch Cheese,Dutch Cheese,✅ PASS,100,,
+Fan Pomegranate Nectar 1000ml,Groceries,Groceries,✅ PASS,Pomegranate Drink,Pomegranate Juice,❌ FAIL,42.9,"Fan Pomegranate Nectar, Pomegranate Drink, Pomegranate Nectar, Fruit Drink",Pomegranate Juice
+Lipton Yellow Label-380g,Groceries,Groceries,✅ PASS,Tea Leaves,Tea Leaves,✅ PASS,100,,Tea
+Suree Green Salad Dressing 295 Ml,Groceries,Groceries,✅ PASS,Salad Dressing,Salad Dressing,✅ PASS,100,,
+Viscafe Shong 3 In 1 Cardamom Tea 360 G,Groceries,Groceries,✅ PASS,Tea,Milk Tea Mix,❌ FAIL,40,"Cardamom Tea, Viscafe Tea, Viscafe Cardamom Tea",Milk Tea Mix
+Pillsbury Chakki Atta 1kg,Groceries,Groceries,✅ PASS,Atta Flour,Atta Flour,✅ PASS,100,,
+Dum Dum Orange Flavoured Jelly 100g,Groceries,Groceries,✅ PASS,Jelly Powder,Jelly,❌ FAIL,28.6,"Jelly Powder, Dum Dum Orange Jelly Powder, Orange Jelly Powder, Dum Dum Jelly Powder, Dum Dum Jelly",
+Swadeshi Kohomba Baby Milk 4 In 1,Personal Care,Baby Care,❌ FAIL,Baby Soap,Baby Soap,✅ PASS,100,,"Khomba Milk Baby Soap, Milk Baby Soap, Khomba Milk Soap, Khomba Soap"
+Pomegranates India 250g -300g,Fresh Produce,Fresh Produce,✅ PASS,Pomegranate,Pomegranate,✅ PASS,100,,Fruit
+Romantra Magnifique Perfumed Cologne Spray 100ml,Personal Care,Personal Care,✅ PASS,Perfume,Cologne,❌ FAIL,50,"Perfume, Romantra Perfumed Cologne Spray, Romantra Magnifique Perfumed Cologne Spray, Perfumed Cologne",Perfumed Cologne Spray
+Sera Chilli Pieces 100g,Groceries,Groceries,✅ PASS,Chilli Pieces,Chilli Pieces,✅ PASS,100,,Chilli
+Ritzbury Super Fine Milk Cooking Chocolate 400g,Groceries,Groceries,✅ PASS,Cooking Chocolate,Cooking Chocolate,✅ PASS,100,,
+Haci Kadir Turkish Delight With Double Roasted Pistachio 250g,Groceries,Groceries,✅ PASS,Pistachio Nuts,Candy,❌ FAIL,20,"Pistachio Nuts, Sweet Pistachios, Haci Kadir Turkish Delight, Turkish Delight","Sweet Candy, Candy"
+Finagle Multy Seed Low Gi Bread 200 G,Bakery,Bakery,✅ PASS,Multiseed Bread,Multiseed Bread,✅ PASS,85.7,Paan,
+Sunquick Fruit Cocktail 700ml,Groceries,Groceries,✅ PASS,Fruit Cordial,Fruit Cordial,✅ PASS,100,,
+Super Chef Mushroom Whole 400g,Groceries,Groceries,✅ PASS,Mushroom,Canned Mushrooms,❌ FAIL,40,"Whole Mushrooms, Super Chef Whole Mushroom, Hatu","Canned Mushrooms, Canned Food"
+Dettol Antiseptic Disinfectant 1l,Household,Pharmacy,❌ FAIL,Disinfectant,Dettol Liquid,❌ FAIL,57.1,"Antiseptic Disinfectant, Dettol Antiseptic Disinfectant, Household","Dettol Liquid, Dettol, Pharmacy"
+Antibo Bath Loofah Oval,Personal Care,Household,❌ FAIL,Loofah,Loofah,✅ PASS,100,,Household
